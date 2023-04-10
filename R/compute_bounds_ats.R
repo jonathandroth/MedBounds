@@ -37,5 +37,5 @@ compute_bounds_ats <- function(df, d, m, y){
   #Get bounds on treatment effect by taking up/lbs for treated minus control mean
   ub <- ub_treated_mean - ats_untreated_mean
   lb <- lb_treated_mean - ats_untreated_mean
-  return( data.frame(lb = lb, up = ub) )
+  return( data.frame(lb = lb, ub = ub) )
 }

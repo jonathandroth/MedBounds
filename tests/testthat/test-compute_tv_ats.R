@@ -34,3 +34,25 @@ test_that("TV returns number close to 1 for very different distributions using b
                1,
                tolerance = 0.03)
 })
+
+test_that("TV bound close to 1 w/very large treatment effect", {
+  expect_equal(compute_tv_ats(df = MedBounds::kerwin_data %>%
+                                dplyr::mutate(EL_EGRA_PCA_Index =
+                                                ifelse(treated,EL_EGRA_PCA_Index + 20,EL_EGRA_PCA_Index)),
+                              d= "treated",
+                              m = "primarily_leblango",
+                              y = "EL_EGRA_PCA_Index"),
+               1,
+               tolerance = 0.03)
+})
+
+
+test_that("TV bound close to 0 w/no treatment effect", {
+    kerwin_data$fake_y <- rnorm(n = nrow(kerwin_data))
+    expect_equal(compute_tv_ats(df = kerwin_data,
+                              d= "treated",
+                              m = "primarily_leblango",
+                              y = "fake_y"),
+               0,
+               tolerance = 0.03)
+})
