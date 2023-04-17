@@ -12,6 +12,7 @@ Imports:
     base,
     dplyr,
     ggplot2,
+    Hmisc,
     leebounds,
     magrittr
 RoxygenNote: 7.1.1

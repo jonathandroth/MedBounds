@@ -1,20 +1,27 @@
-#' @title Bounds on fraction of always-takers effected
+#' @title Bounds on fraction of always-takers affected
 #'@description Computes bounds on the TV distance btwn Y(1,1) and Y(1,0) for always takers
 #' This is a lower bound on the fraction of ATs for whom there is a direct effect of D on Y
 #' @param df A data frame
 #' @param d Name of the treatment variable in the df
 #' @param m Name of the mediator variable
 #' @param y Name of the outcome variable
+#' @param w (Optional) Name of weighting variable. If null, equal weights are used
 #@param method Either "density", to use a kernel density to compute TV, or "bins", to use a discrete approximation
 #' @export
 
-compute_tv_ats <- function(df, d, m, y){
+compute_tv_ats <- function(df, d, m, y, w = NULL){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
   mvec <- df[[m]]
 
-  partial_densities_and_shares <- compute_partial_densities_and_shares(df,d,m,y)
+  if(is.null(w)){
+    wvec <- rep(1, NROW(df))
+  }else{
+    wvec <- df[[w]]
+  }
+
+  partial_densities_and_shares <- compute_partial_densities_and_shares(df,d,m,y,w=w)
 
   f_partial01 <- partial_densities_and_shares$f_partial01
   f_partial11 <- partial_densities_and_shares$f_partial11
@@ -49,13 +56,21 @@ compute_tv_ats <- function(df, d, m, y){
 
 
 compute_partial_densities_and_shares <-
-  function(df, d, m, y, ...){
+  function(df, d, m, y, w= NULL,...){
     yvec <- df[[y]]
     dvec <- df[[d]]
     mvec <- df[[m]]
 
-    frac_compliers <- base::mean( mvec[dvec == 1] ) - base::mean( mvec[dvec ==0] )
-    frac_ats <- base::mean( mvec[ dvec == 0 ] )
+    if(is.null(w)){
+      wvec <- rep(1, NROW(df))
+    }else{
+      wvec <- df[[w]]
+    }
+
+
+    frac_compliers <- stats::weighted.mean( mvec[dvec == 1], w = wvec[dvec == 1] ) -
+      stats::weighted.mean( mvec[dvec == 0], w = wvec[dvec == 0])
+    frac_ats <- stats::weighted.mean( mvec[dvec == 0], w= wvec[dvec == 0] )
     theta_ats <- frac_ats / (frac_compliers + frac_ats) #fraction among Cs/ATs
 
     ats_untreated_index <- (dvec == 0) & (mvec == 1) #these are ATs when untreated
@@ -64,9 +79,15 @@ compute_partial_densities_and_shares <-
     y_ats_treated <- yvec[ats_treated_index]
     y_ats_untreated <- yvec[ats_untreated_index]
 
+    w_ats_treated <- wvec[ats_treated_index]
+    w_ats_untreated <- wvec[ats_untreated_index]
 
-    dens_y_ats_treated <- get_density_fn(x = y_ats_treated, ...)
-    dens_y_ats_untreated <- get_density_fn(x = y_ats_untreated, ...)
+    #The density function doesn't normalize weights, so normalize these
+    w_ats_treated <- w_ats_treated/sum(w_ats_treated)
+    w_ats_untreated <- w_ats_untreated/sum(w_ats_untreated)
+
+    dens_y_ats_treated <- get_density_fn(x = y_ats_treated, weights = w_ats_treated, ...)
+    dens_y_ats_untreated <- get_density_fn(x = y_ats_untreated, weights = w_ats_untreated, ...)
 
     f_partial11 <- function(y){ (frac_ats + frac_compliers) * dens_y_ats_treated(y) }
     f_partial01 <- function(y){ frac_ats  * dens_y_ats_untreated(y) }

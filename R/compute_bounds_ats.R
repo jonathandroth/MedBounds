@@ -7,31 +7,48 @@
 #' @importFrom "stats" "quantile"
 #' @export
 
-compute_bounds_ats <- function(df, d, m, y){
+compute_bounds_ats <- function(df, d, m, y, w = NULL){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
   mvec <- df[[m]]
 
+  if(is.null(w)){
+    wvec <- rep(1, NROW(df))
+  }else{
+    wvec <- df[[w]]
+  }
+
   #ATs Y(0,1) outcome is point-identified based on observations with D=0,M=1
   ats_untreated_index <- (dvec == 0) & (mvec == 1)
-  ats_untreated_mean <- base::mean( yvec[ats_untreated_index] )
+  ats_untreated_mean <- stats::weighted.mean( x = yvec[ats_untreated_index],
+                                              w = wvec[ats_untreated_index])
 
   ### ATs Y(1,1) outcome is partially-identified ###
   ats_treated_index <- (dvec == 1) & (mvec == 1) #these are ATs or Cs
 
   #Compute fraction of ATs/Cs
-  frac_compliers <- base::mean( mvec[dvec == 1] ) - base::mean( mvec[dvec ==0] )
-  frac_ats <- base::mean( mvec[ dvec == 0 ] )
+  frac_compliers <- stats::weighted.mean( mvec[dvec == 1], w =  wvec[dvec == 1] ) -
+    stats::weighted.mean( mvec[dvec == 0], w = wvec[dvec == 0] )
+  frac_ats <- stats::weighted.mean( mvec[ dvec == 0 ], w = wvec[ dvec == 0] )
   theta_ats <- frac_ats / (frac_compliers + frac_ats) #fraction among Cs/ATs
 
   # Get ub on Y(1,1) by trimming to the upper theta_at's fraction
-  quantile_ub <- quantile(yvec[ats_treated_index], 1-theta_ats)
-  ub_treated_mean <- base::mean( yvec[ ats_treated_index & yvec >= quantile_ub  ]  )
+  quantile_ub <- Hmisc::wtd.quantile(x = yvec[ats_treated_index],
+                                     probs = 1-theta_ats,
+                                     weights = wvec[ats_treated_index],
+                                     normwt = T)
+
+  ub_treated_mean <- stats::weighted.mean( x = yvec[ ats_treated_index & yvec >= quantile_ub  ],
+                                           w = wvec[ ats_treated_index & yvec >= quantile_ub  ])
 
   # Get lb on Y(1,1) by trimming to the lower theta_at's fraction
-  quantile_lb <- stats::quantile(yvec[ats_treated_index], theta_ats)
-  lb_treated_mean <- base::mean( yvec[ ats_treated_index & yvec <= quantile_lb  ]  )
+  quantile_lb <- Hmisc::wtd.quantile(x = yvec[ats_treated_index],
+                                     probs = theta_ats,
+                                     weights = wvec[ats_treated_index],
+                                     normwt = T)
+  lb_treated_mean <- stats::weighted.mean( x = yvec[ ats_treated_index & yvec <= quantile_lb  ],
+                                           w = wvec[ ats_treated_index & yvec <= quantile_lb  ])
 
 
   #Get bounds on treatment effect by taking up/lbs for treated minus control mean
