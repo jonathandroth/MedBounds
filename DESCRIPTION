@@ -11,6 +11,8 @@ LazyData: true
 Imports: 
     base,
     dplyr,
+    ggplot2,
+    leebounds,
     magrittr
 RoxygenNote: 7.1.1
 Suggests: 

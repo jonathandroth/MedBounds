@@ -5,30 +5,20 @@
 #' @param d Name of the treatment variable in the df
 #' @param m Name of the mediator variable
 #' @param y Name of the outcome variable
-#' @param method Either "density", to use a kernel density to compute TV, or "bins", to use a discrete approximation
+#@param method Either "density", to use a kernel density to compute TV, or "bins", to use a discrete approximation
 #' @export
 
-compute_tv_ats <- function(df, d, m, y, method = "density"){
+compute_tv_ats <- function(df, d, m, y){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
   mvec <- df[[m]]
 
-  ats_untreated_index <- (dvec == 0) & (mvec == 1)
-  ats_treated_index <- (dvec == 1) & (mvec == 1) #these are ATs or Cs
+  partial_densities_and_shares <- compute_partial_densities_and_shares(df,d,m,y)
 
-  y_ats_treated <- yvec[ats_treated_index]
-  y_ats_untreated <- yvec[ats_untreated_index]
-
-  frac_compliers <- base::mean( mvec[dvec == 1] ) - base::mean( mvec[dvec ==0] )
-  frac_ats <- base::mean( mvec[ dvec == 0 ] )
-  theta_ats <- frac_ats / (frac_compliers + frac_ats) #fraction among Cs/ATs
-
-  dens_y_ats_treated <- get_density_fn(y_ats_treated)
-  dens_y_ats_untreated <- get_density_fn(y_ats_untreated)
-
-  f_partial11 <- function(y){ (frac_ats + frac_compliers) * dens_y_ats_treated(y) }
-  f_partial01 <- function(y){ frac_ats  * dens_y_ats_untreated(y) }
+  f_partial01 <- partial_densities_and_shares$f_partial01
+  f_partial11 <- partial_densities_and_shares$f_partial11
+  theta_ats <- partial_densities_and_shares$theta_ats
 
   positive_part <- function(y){ base::pmax(y,0) }
 
@@ -56,6 +46,41 @@ compute_tv_ats <- function(df, d, m, y, method = "density"){
   #
   return(TV_lb)
 }
+
+
+compute_partial_densities_and_shares <-
+  function(df, d, m, y, ...){
+    yvec <- df[[y]]
+    dvec <- df[[d]]
+    mvec <- df[[m]]
+
+    frac_compliers <- base::mean( mvec[dvec == 1] ) - base::mean( mvec[dvec ==0] )
+    frac_ats <- base::mean( mvec[ dvec == 0 ] )
+    theta_ats <- frac_ats / (frac_compliers + frac_ats) #fraction among Cs/ATs
+
+    ats_untreated_index <- (dvec == 0) & (mvec == 1) #these are ATs when untreated
+    ats_treated_index <- (dvec == 1) & (mvec == 1) #these are ATs or Cs
+
+    y_ats_treated <- yvec[ats_treated_index]
+    y_ats_untreated <- yvec[ats_untreated_index]
+
+
+    dens_y_ats_treated <- get_density_fn(x = y_ats_treated, ...)
+    dens_y_ats_untreated <- get_density_fn(x = y_ats_untreated, ...)
+
+    f_partial11 <- function(y){ (frac_ats + frac_compliers) * dens_y_ats_treated(y) }
+    f_partial01 <- function(y){ frac_ats  * dens_y_ats_untreated(y) }
+
+    resultsList <-
+      list(frac_compliers = frac_compliers,
+           frac_ats = frac_ats,
+           theta_ats = theta_ats,
+           f_partial11 = f_partial11,
+           f_partial01 = f_partial01)
+
+    return(resultsList)
+
+  }
 
 
 get_density_fn <- function(x,...){

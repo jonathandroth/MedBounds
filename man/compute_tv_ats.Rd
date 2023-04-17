@@ -4,7 +4,7 @@
 \alias{compute_tv_ats}
 \title{Bounds on fraction of always-takers effected}
 \usage{
-compute_tv_ats(df, d, m, y, method = "density")
+compute_tv_ats(df, d, m, y)
 }
 \arguments{
 \item{df}{A data frame}
