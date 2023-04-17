@@ -4,7 +4,7 @@
 \alias{compute_bounds_ats}
 \title{Bounds on direct for always-takers}
 \usage{
-compute_bounds_ats(df, d, m, y)
+compute_bounds_ats(df, d, m, y, w = NULL)
 }
 \arguments{
 \item{df}{A data frame}

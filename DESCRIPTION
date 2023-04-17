@@ -12,9 +12,9 @@ Imports:
     base,
     dplyr,
     ggplot2,
-    Hmisc,
     leebounds,
-    magrittr
+    magrittr,
+    reldist
 RoxygenNote: 7.1.1
 Suggests: 
     testthat (>= 3.0.0)

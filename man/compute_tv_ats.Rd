@@ -2,9 +2,9 @@
 % Please edit documentation in R/compute_tv_ats.R
 \name{compute_tv_ats}
 \alias{compute_tv_ats}
-\title{Bounds on fraction of always-takers effected}
+\title{Bounds on fraction of always-takers affected}
 \usage{
-compute_tv_ats(df, d, m, y)
+compute_tv_ats(df, d, m, y, w = NULL)
 }
 \arguments{
 \item{df}{A data frame}
@@ -14,6 +14,8 @@ compute_tv_ats(df, d, m, y)
 \item{m}{Name of the mediator variable}
 
 \item{y}{Name of the outcome variable}
+
+\item{w}{(Optional) Name of weighting variable. If null, equal weights are used}
 }
 \description{
 Computes bounds on the TV distance btwn Y(1,1) and Y(1,0) for always takers
