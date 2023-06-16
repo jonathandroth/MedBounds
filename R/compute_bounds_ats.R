@@ -1,14 +1,20 @@
-#' @title Bounds on direct for always-takers
+#' @title Bounds on direct effect for always-takers
 #' @description Computes bounds on E[Y(1,1) - Y(1,0) | G = AT], the average direct effect for ATs for whom there is a direct effect of D on Y
 #' @param df A data frame
 #' @param d Name of the treatment variable in the df
 #' @param m Name of the mediator variable
 #' @param y Name of the outcome variable
 #' @param w (Optional) Name of weighting variable. If null, equal weights are used
+#' @param c_at_ratio (Optional) specify the ratio of E[Y(1,1) | C]/E[Y(1,1) | AT]. If this is specified, direct effect for ATs is point-identified
 #' @importFrom "stats" "quantile"
 #' @export
 
-compute_bounds_ats <- function(df, d, m, y, w = NULL){
+compute_bounds_ats <- function(df,
+                               d,
+                               m,
+                               y,
+                               w = NULL,
+                               c_at_ratio = NULL){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -26,14 +32,18 @@ compute_bounds_ats <- function(df, d, m, y, w = NULL){
   ats_untreated_mean <- stats::weighted.mean( x = yvec[ats_untreated_index],
                                               w = wvec[ats_untreated_index])
 
-  ### ATs Y(1,1) outcome is partially-identified ###
-  ats_treated_index <- (dvec == 1) & (mvec == 1) #these are ATs or Cs
 
-  #Compute fraction of ATs/Cs
+
+  ##Compute fraction of ATs/Cs
+  ats_treated_index <- (dvec == 1) & (mvec == 1) #these are ATs or Cs
   frac_compliers <- stats::weighted.mean( x = mvec[dvec == 1], w = wvec[dvec == 1] ) -
     stats::weighted.mean( x = mvec[dvec == 0], w = wvec[dvec == 0] )
   frac_ats <- stats::weighted.mean( x = mvec[ dvec == 0 ],  w = wvec[ dvec == 0 ]  )
   theta_ats <- frac_ats / (frac_compliers + frac_ats) #fraction among Cs/ATs
+
+  ### ATs Y(1,1) outcome is partially-identified if ratio bound is not specified###
+
+  if(is.null(c_at_ratio)){
 
   # Get ub on Y(1,1) by trimming to the upper theta_at's fraction
   quantile_ub <- reldist::wtd.quantile(x = yvec[ats_treated_index],
@@ -56,4 +66,27 @@ compute_bounds_ats <- function(df, d, m, y, w = NULL){
   ub <- ub_treated_mean - ats_untreated_mean
   lb <- lb_treated_mean - ats_untreated_mean
   return( data.frame(lb = lb, ub = ub) )
+
+  }else{
+    mean_for_d1m1 <- stats::weighted.mean( x = yvec[ats_treated_index],
+                                           w = wvec[ats_treated_index])
+    ats_treated_mean <- 1/(theta_ats + c_at_ratio * (1- theta_ats)) * mean_for_d1m1
+    ate_ats <- ats_treated_mean - ats_untreated_mean
+    return(data.frame(ate_ats = ate_ats))
+  }
+}
+
+compute_posterior_draws <- function(f, df, d, m, y, w = NULL, numdraws = 100){
+  n <- NROW(df)
+
+  compute_posterior_helper <- function(seed){
+    set.seed(seed)
+    gammaDraws <- stats::rgamma(n = n, shape = 1) #draw indep gammas
+    dirichletDraws <- gammaDraws / sum(gammaDraws) #normalize to get Dirichlet
+    df$dirichletDraws <- dirichletDraws
+    return(f(df, d, m, y, w = "dirichletDraws"))
+  }
+
+  posteriorDraws <- purrr::map_dfr(.x = 1:numdraws, .f = compute_posterior_helper)
+  return(posteriorDraws)
 }
