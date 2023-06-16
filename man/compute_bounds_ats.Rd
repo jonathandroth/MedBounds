@@ -2,9 +2,9 @@
 % Please edit documentation in R/compute_bounds_ats.R
 \name{compute_bounds_ats}
 \alias{compute_bounds_ats}
-\title{Bounds on direct for always-takers}
+\title{Bounds on direct effect for always-takers}
 \usage{
-compute_bounds_ats(df, d, m, y, w = NULL)
+compute_bounds_ats(df, d, m, y, w = NULL, c_at_ratio = NULL)
 }
 \arguments{
 \item{df}{A data frame}
@@ -14,6 +14,10 @@ compute_bounds_ats(df, d, m, y, w = NULL)
 \item{m}{Name of the mediator variable}
 
 \item{y}{Name of the outcome variable}
+
+\item{w}{(Optional) Name of weighting variable. If null, equal weights are used}
+
+\item{c_at_ratio}{(Optional) specify the ratio of E[Y(1,1) | C]/E[Y(1,1) | AT]. If this is specified, direct effect for ATs is point-identified}
 }
 \description{
 Computes bounds on E[Y(1,1) - Y(1,0) | G = AT], the average direct effect for ATs for whom there is a direct effect of D on Y
