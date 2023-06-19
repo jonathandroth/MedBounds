@@ -6,6 +6,7 @@
 #' @param y Name of the outcome variable
 #' @param w (Optional) Name of weighting variable. If null, equal weights are used
 #' @param c_at_ratio (Optional) specify the ratio of E[Y(1,1) | C]/E[Y(1,1) | AT]. If this is specified, direct effect for ATs is point-identified
+#' @param adjust_for_point_mass (Optional) specify whether to use a correction to the bounds that allows for point-mass in the distribution of Y (default TRUE)
 #' @importFrom "stats" "quantile"
 #' @export
 
@@ -14,7 +15,8 @@ compute_bounds_ats <- function(df,
                                m,
                                y,
                                w = NULL,
-                               c_at_ratio = NULL){
+                               c_at_ratio = NULL,
+                               adjust_for_point_mass = TRUE){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -49,18 +51,56 @@ compute_bounds_ats <- function(df,
   quantile_ub <- reldist::wtd.quantile(x = yvec[ats_treated_index],
                                        q = 1-theta_ats,
                                        weight = wvec[ats_treated_index])
+    # quantile_ub <- Hmisc::wtd.quantile(x = yvec[ats_treated_index],
+    #                                    probs = 1-theta_ats,
+    #                                    weights = wvec[ats_treated_index],
+    #                                    normwt = TRUE)
+
+  if(adjust_for_point_mass){
+    #Quantile function uses interpolation. We want the inf version if we're going to correct
+    quantile_ub <- min(yvec[ats_treated_index &  yvec >= quantile_ub])
+  }
 
   ub_treated_mean <- stats::weighted.mean( yvec[ ats_treated_index & yvec >= quantile_ub  ],
                                            wvec[ ats_treated_index & yvec >= quantile_ub  ])
+
+
+  #Adjust the trimmed mean to allow for point-mass at quantile_ub
+  if(adjust_for_point_mass == TRUE){
+    p <- stats::weighted.mean( x = (yvec[ats_treated_index] < quantile_ub ),
+                               w = wvec[ats_treated_index] )
+
+    thetatilde <- 1 - (1-theta_ats - p)/(1-p)
+    ub_treated_mean <- 1/thetatilde * ub_treated_mean - (1-thetatilde) / thetatilde * quantile_ub
+  }
 
   # Get lb on Y(1,1) by trimming to the lower theta_at's fraction
   quantile_lb <- reldist::wtd.quantile(x = yvec[ats_treated_index],
                                        q = theta_ats,
                                        weight = wvec[ats_treated_index])
 
+  # quantile_lb <- Hmisc::wtd.quantile(x = yvec[ats_treated_index],
+  #                                    probs = theta_ats,
+  #                                    weights = wvec[ats_treated_index],
+  #                                    normwt = TRUE)
+
+  if(adjust_for_point_mass){
+  #Quantile function uses interpolation. We want the inf version if we're going to correct
+  quantile_lb <- min(yvec[ats_treated_index &  yvec >= quantile_lb])
+  }
+
   lb_treated_mean <- stats::weighted.mean( x = yvec[ ats_treated_index & yvec <= quantile_lb  ],
                                            w = wvec[ ats_treated_index & yvec <= quantile_lb  ])
 
+
+  #Adjust the trimmed mean to allow for point-mass at quantile_ub
+  if(adjust_for_point_mass == TRUE){
+    p <- stats::weighted.mean( x = (yvec[ats_treated_index] <= quantile_lb ),
+                               w = wvec[ats_treated_index] )
+
+    thetatilde <- theta_ats / p
+    lb_treated_mean <- 1/thetatilde * lb_treated_mean - (1-thetatilde) / thetatilde * quantile_lb
+  }
 
   #Get bounds on treatment effect by taking up/lbs for treated minus control mean
   ub <- ub_treated_mean - ats_untreated_mean
