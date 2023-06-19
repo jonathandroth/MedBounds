@@ -1,11 +1,11 @@
-compute_bootstrap_draws <- function(f, df, d, m, y, w = NULL, numdraws = 100){
+compute_bootstrap_draws <- function(f, df, d, m, y, numdraws = 100){
   n <- NROW(df)
 
   bootstrap_one_seed <- function(seed){
     set.seed(seed)
     obs <- sample.int(n=NROW(df),size =NROW(df),replace = TRUE)
     df_bootstrap <- df[obs,]
-    return(f(df_bootstrap, d, m, y, w = "dirichletDraws"))
+    return(f(df_bootstrap, d, m, y))
   }
 
   bootstrapDraws <- purrr::map_dfr(.x = 1:numdraws, .f = bootstrap_one_seed)
@@ -20,6 +20,7 @@ compute_bootstrap_draws_clustered <- function(f, df, d, m, y, cluster = NULL, nu
     ncluster <- n
     uniqueClusters <- 1:n
     df$cluster <- 1:n
+    cluster <- "cluster"
   }else{
     uniqueClusters <- unique(df[[cluster]])
     ncluster <- length(uniqueClusters)
