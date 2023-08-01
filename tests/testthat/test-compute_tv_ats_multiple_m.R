@@ -1,3 +1,29 @@
+#Write unit tests for the compute_tv_ats_multiple_m function
+
+#compute_tv_ats_multiple_m should match the output of compute_tv_ats when a single binary M is provided
+
+test_that("compute_tv_ats_multiple_m matches compute_tv_ats when a binary M is provided", {
+  #Use the fn for the binary M case
+  tv_binary <-
+  MedBounds::compute_tv_ats(df = MedBounds::kerwin_data,
+                              d= "treated",
+                              m = "primarily_leblango",
+                              y = "EL_EGRA_PCA_Index")
+
+  tv_multiple <-
+    MedBounds::compute_tv_ats_multiple_m(df = MedBounds::kerwin_data,
+                              d= "treated",
+                              m = "primarily_leblango",
+                              y = "EL_EGRA_PCA_Index",
+                              at_group = c(TRUE,TRUE))
+
+  #Check that the two are equal
+  expect_equal(tv_binary, tv_multiple, tolerance = 0.01)
+})
+
+
+
+#Test the fractional linear programming wrapper that we wrote
 test_that("Fractional linear programming works on simple examples", {
 
   frac_lp_result <-

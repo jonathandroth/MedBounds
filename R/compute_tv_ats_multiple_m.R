@@ -132,22 +132,72 @@ compute_tv_ats_multiple_m <- function(df,
     # The elements in the first part of the optimizaiton vector are probabilities, thus btwn 0 and 1
     # The bounds theta_kk TV_k must be >= 0
     # Put this in a list with elements lower and upper
-    bounds <- list(lower = rep(0, NCOL(constraints_matrix)),
-                   upper = c(rep(1, NCOL(constraints_matrix)-NROW(mvalues)),
-                             rep(Inf, NROW(mvalues))) )
+    bounds <- list(lower = list(ind = 1:NCOL(constraints_matrix),
+                                val = rep(0, NCOL(constraints_matrix))),
+                   upper = list(ind = 1:NCOL(constraints_matrix),
+                                val = c(rep(1, NCOL(constraints_matrix)-NROW(mvalues)),
+                                        rep(Inf, NROW(mvalues))) )
+                    )
 
     ##Specify the objective
 
-    #Use Rglpk to solve the linear program to minimize the violation of the constraints
-    max_violation <- Rglpk::Rglpk_solve_LP(obj = c(rep(0, NCOL(constraints_matrix)-1), 1),
-                                           mat = constraints_matrix,
-                                           dir = dir,
-                                           rhs = d,
-                                           bounds = bounds,
-                                           max = FALSE)
+    ##Create a function that returns the objective vectors for a single at_group
+    ##Our objective is theta_kk TV_k / theta_kk
+    compute_obj_vectors <- function(at_group){
 
+      row_equals <- function(x,y){ base::all(x == y)}
+
+      #Find the index i such that the ith row of m0_types and m1_types are equal to at_group
+      at_group_index <- which(purrr::map_lgl(.x = 1:NROW(m0_types),
+                                             .f = ~row_equals(m0_types[.x,], at_group) &
+                                               row_equals(m1_types[.x,], at_group)))
+
+      #Thus denominator is a basis vector with one in pos corresponding to thetakk
+      obj_denominator <- rep(0, NCOL(constraints_matrix))
+      obj_denominator[at_group_index] <- 1
+
+      #Find the index i such that the ith row of mvalues equals at_group
+      at_group_index <- which(purrr::map_lgl(.x = 1:NROW(mvalues),
+                                             .f = ~row_equals(mvalues[.x,],at_group)))
+
+      #Numerator is a basis vector with one in pos corresponding to thetakk TVk
+      obj_numerator <- rep(0, NCOL(constraints_matrix))
+      obj_numerator[NROW(m1_types) + at_group_index] <- 1
+
+      return(list(obj_numerator = obj_numerator,
+                  obj_denominator = obj_denominator))
+    }
+
+    if(!is.null(at_group)){
+      obj_numerator <- compute_obj_vectors(at_group = at_group)$obj_numerator
+      obj_denominator <- compute_obj_vectors(at_group = at_group)$obj_denominator
+    }else{
+      #Otherwise, we're interested in the average, i.e. \sum_k \theta_kk TV_k / \sum_k \theta_kk
+      #Hence, we compuute the objective vector for each at_group and take the average
+      obj_numerator <- Reduce("+", base::lapply(X = 1:NROW(mvalues),
+                                                FUN = function(i){compute_obj_vectors(at_group = mvalues[i,])$obj_numerator}))
+      obj_denominator <- Reduce("+", base::lapply(X = 1:NROW(mvalues),
+                                                 FUN = function(i){compute_obj_vectors(at_group = mvalues[i,])$obj_denominator}))
+    }
+    #Use Rglpk to solve the fraction-linear program to minimize the weighted average of TV
+      #We capture warnings if the denom can be zero
+    quiet_fractional_LP <- purrr::quietly(MedBounds::Rglpk_solve_fractional_LP)
+    max_violation <-
+      quiet_fractional_LP(
+        obj_numerator = obj_numerator,
+        obj_denominator = obj_denominator,
+        mat = constraints_matrix,
+        dir = dir,
+        rhs = d,
+        bounds = bounds,
+        max = FALSE)
+
+    if(!is.na(max_violation$warnings[1]) & max_violation$warnings[1] == "The minimum value of the denominator is not positive. Returning NaN."){
+      warning("The lower bound for the fraction of always-takers for the chosen at_group is zero. Returning NaN")
+      return(NaN)
+    }
     #Return the maximal violation
-    return(max_violation$optimum)
+    return(max_violation$result$optimum)
 }
 
 
@@ -186,7 +236,7 @@ Rglpk_solve_fractional_LP <- function(obj_numerator,
 
   if(denom_lp$optimum + constant_denominator <= 0){
     warning("The minimum value of the denominator is not positive. Returning NaN.")
-    return(NaN)
+    return(list(optimum=NaN))
   }
 
   #We use the Charnes Cooper transformation to convert the linear fractional program into a linear program
