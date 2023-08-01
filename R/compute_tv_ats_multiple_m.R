@@ -225,7 +225,7 @@ Rglpk_solve_fractional_LP <- function(obj_numerator,
                                        ...)
 
   #Convert the fractional_lp_solution back to the original by dividing by t (the last element of the optimization vector)
-  original_lp_solution <- fractional_lp_solution$optimum[-length(fractional_lp_solution$optimum)]/fractional_lp_solution$optimum[length(fractional_lp_solution$optimum)]
+  original_lp_solution <- fractional_lp_solution$solution[-length(fractional_lp_solution$solution)]/fractional_lp_solution$solution[length(fractional_lp_solution$solution)]
 
   #Return the results
   return(list(optimum = fractional_lp_solution$optimum,
