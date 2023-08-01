@@ -76,7 +76,7 @@ compute_tv_ats_multiple_m <- function(df,
 
     p_m_0 <- base::apply(mvalues,1, p_m_0_fn)
 
-    ## We now estimate the TV_kk
+    ## We now calculate lower bounds on TV using either the group provided, or averaging across groups proportionally to share
     ## We consider an optimization where the first part of the optimization vector corresponds to the shares of complier types
     ## and the final vector is the violation of the moments (corresponding to our lb on theta_kk TV_kk)
 
@@ -111,11 +111,17 @@ compute_tv_ats_multiple_m <- function(df,
     #Create a matrix where each row i is a NROW(m1_types) length vector where the jth element indicates if the jth row of m1_types equals the ith row of mvalues and the jth row of m1_types is not exactly equal to the jth row of m0_types
     complier_constraints_matrix <-
       Reduce(rbind,
-        base::lapply(X = 1:NROW(mvalues),
-                     FUN = function(i){base::sapply(1:NROW(m1_types), function(s){ base::all(m1_types[s,] == mvalues[i,]) & !base::all(m0_types[s,] == m0_types[i,]) })}))
+             purrr::map(.x = 1:NROW(mvalues),
+                        .f = function(m_index){ purrr::map_lgl(.x = 1:NROW(m1_types),
+                                                               .f = ~MedBounds:::row_equals(m1_types[.x,], mvalues[m_index,] ) &
+                                                                     !MedBounds:::row_equals(m0_types[.x,], mvalues[m_index,] ))  })
+            )
+        # base::lapply(X = 1:NROW(mvalues),
+        #              FUN = function(i){base::sapply(1:NROW(m1_types), function(s){ base::all(m1_types[s,] == mvalues[i,]) & !base::all(m0_types[s,] == m0_types[i,]) })}))
 
     #Add an identity matrix to complier_constraints_matrix
       # Thus the end vector corresponds to violation of kth moment, i.e. theta_kk TV_k
+
     complier_constraints_matrix <- base::cbind(complier_constraints_matrix,
                                                diag(NROW(mvalues)))
 
@@ -128,16 +134,12 @@ compute_tv_ats_multiple_m <- function(df,
     #Specify the direction of the equalities/inequalities
     dir <- c(rep("==", 2*NROW(m1_marginals_constraints_matrix)), rep(">=", NROW(max_p_diffs)))
 
-    #Specify the bounds on the optimization vector:
-    # The elements in the first part of the optimizaiton vector are probabilities, thus btwn 0 and 1
-    # The bounds theta_kk TV_k must be >= 0
-    # Put this in a list with elements lower and upper
-    bounds <- list(lower = list(ind = 1:NCOL(constraints_matrix),
-                                val = rep(0, NCOL(constraints_matrix))),
-                   upper = list(ind = 1:NCOL(constraints_matrix),
-                                val = c(rep(1, NCOL(constraints_matrix)-NROW(mvalues)),
-                                        rep(Inf, NROW(mvalues))) )
-                    )
+    #We do not need to provide a bound argument, since by default Rglpk requires variables to be positive
+    # The marginal probabilities constraints imply that the the thetas can't be >1
+    #(We previously specified bounds here, but they messed up the transformation of the fractional-lp)
+    #If you want to provide bounds, these should be added to the matrix of constraints
+
+
 
     ##Specify the objective
 
@@ -145,12 +147,11 @@ compute_tv_ats_multiple_m <- function(df,
     ##Our objective is theta_kk TV_k / theta_kk
     compute_obj_vectors <- function(at_group){
 
-      row_equals <- function(x,y){ base::all(x == y)}
 
       #Find the index i such that the ith row of m0_types and m1_types are equal to at_group
       at_group_index <- which(purrr::map_lgl(.x = 1:NROW(m0_types),
-                                             .f = ~row_equals(m0_types[.x,], at_group) &
-                                               row_equals(m1_types[.x,], at_group)))
+                                             .f = ~MedBounds:::row_equals(m0_types[.x,], at_group) &
+                                               MedBounds:::row_equals(m1_types[.x,], at_group)))
 
       #Thus denominator is a basis vector with one in pos corresponding to thetakk
       obj_denominator <- rep(0, NCOL(constraints_matrix))
@@ -173,7 +174,7 @@ compute_tv_ats_multiple_m <- function(df,
       obj_denominator <- compute_obj_vectors(at_group = at_group)$obj_denominator
     }else{
       #Otherwise, we're interested in the average, i.e. \sum_k \theta_kk TV_k / \sum_k \theta_kk
-      #Hence, we compuute the objective vector for each at_group and take the average
+      #Hence, we compute the objective vector for each at_group and take the average
       obj_numerator <- Reduce("+", base::lapply(X = 1:NROW(mvalues),
                                                 FUN = function(i){compute_obj_vectors(at_group = mvalues[i,])$obj_numerator}))
       obj_denominator <- Reduce("+", base::lapply(X = 1:NROW(mvalues),
@@ -189,7 +190,7 @@ compute_tv_ats_multiple_m <- function(df,
         mat = constraints_matrix,
         dir = dir,
         rhs = d,
-        bounds = bounds,
+        bounds = NULL,
         max = FALSE)
 
     if(!is.na(max_violation$warnings[1]) & max_violation$warnings[1] == "The minimum value of the denominator is not positive. Returning NaN."){
@@ -200,6 +201,8 @@ compute_tv_ats_multiple_m <- function(df,
     return(max_violation$result$optimum)
 }
 
+#' @title Function that computes whether a row of a df x equals a row of a df y in all elements
+row_equals <- function(x,y){ base::all(x == y)}
 
 #' @title Wrapper for Rglpk_solve_lp that implements linear fractional programming
 #' @param obj_numerator The objective vector for the numerator of the linear fractional program
@@ -207,7 +210,7 @@ compute_tv_ats_multiple_m <- function(df,
 #' @param mat The constraint matrix
 #' @param dir The direction of the constraints
 #' @param rhs The right hand side of the constraints
-#' @param bounds The bounds on the optimization vector
+#' @param bounds The bounds on the optimization vector. Note: the bounds should only be 0 or Inf, otherwise this will mess up the transformation of the fractional-LP to an LP. If you have other bounds, add these to the constraints in mat
 #' @param max (Optional) Whether to maximize or minimize the objective
 #' @param constant_numerator (Optional) A constant to add to the numerator of the linear fractional program
 #' @param constant_denominator (Optional) A constant to add to the denominator of the linear fractional program
@@ -344,144 +347,3 @@ compute_max_p_difference <- function(dvec, mdf, yvec, wvec=NULL,...){
              max_p_diffs = max_p_diffs))
 }
 
-compute_partial_densities_and_shares <-
-  function(df, d, m, y, w= NULL,...){
-    yvec <- df[[y]]
-    dvec <- df[[d]]
-    mvec <- df[[m]]
-
-    if(is.null(w)){
-      wvec <- rep(1, NROW(df))
-    }else{
-      wvec <- df[[w]]
-    }
-
-
-    frac_compliers <- stats::weighted.mean( mvec[dvec == 1], w = wvec[dvec == 1] ) -
-      stats::weighted.mean( mvec[dvec == 0], w = wvec[dvec == 0])
-    frac_ats <- stats::weighted.mean( mvec[dvec == 0], w= wvec[dvec == 0] )
-    theta_ats <- frac_ats / (frac_compliers + frac_ats) #fraction among Cs/ATs
-
-    ats_untreated_index <- (dvec == 0) & (mvec == 1) #these are ATs when untreated
-    ats_treated_index <- (dvec == 1) & (mvec == 1) #these are ATs or Cs
-
-    y_ats_treated <- yvec[ats_treated_index]
-    y_ats_untreated <- yvec[ats_untreated_index]
-
-    w_ats_treated <- wvec[ats_treated_index]
-    w_ats_untreated <- wvec[ats_untreated_index]
-
-    #The density function doesn't normalize weights, so normalize these
-    w_ats_treated <- w_ats_treated/sum(w_ats_treated)
-    w_ats_untreated <- w_ats_untreated/sum(w_ats_untreated)
-
-    dens_y_ats_treated <- get_density_fn(x = y_ats_treated, weights = w_ats_treated, ...)
-    dens_y_ats_untreated <- get_density_fn(x = y_ats_untreated, weights = w_ats_untreated, ...)
-
-    f_partial11 <- function(y){ (frac_ats + frac_compliers) * dens_y_ats_treated(y) }
-    f_partial01 <- function(y){ frac_ats  * dens_y_ats_untreated(y) }
-
-    resultsList <-
-      list(frac_compliers = frac_compliers,
-           frac_ats = frac_ats,
-           theta_ats = theta_ats,
-           f_partial11 = f_partial11,
-           f_partial01 = f_partial01)
-
-    return(resultsList)
-
-  }
-
-
-get_density_fn <- function(x,...){
-
-  dens <- stats::density(x=x,...)
-  #Create a function that returns the density at any point
-  # Return 0 if outside of range of dens$x
-  # Otherwise, return the density at the largest pt in dens$x below y
-  dens_fn <- function(y){
-    index <- base::findInterval(y, dens$x)
-    y_plus_zeros <- c(0,dens$y,0)
-    return(y_plus_zeros[index+1])
-  }
-
-  return(dens_fn)
-}
-
-TV_distance_fn <- function(y1,
-                           y2,
-                           method = "density",
-                           numbins = ceiling(length(y1)/20)){
-
-  if(method == "bins"){
-    binned_y <- dplyr::ntile( c(y1,y2), numbins)
-
-    binned_y1 <- binned_y[(1:length(y1))]
-    binned_y2 <- binned_y[-(1:length(y1))]
-
-    y1_freq_table <- data.frame(y1 = binned_y1) %>%
-      dplyr::group_by(y1) %>%
-      dplyr::count() %>%
-      dplyr::ungroup() %>%
-      dplyr::mutate(dens1  = n/base::sum(n) )
-
-    y2_freq_table <- data.frame(y2 = binned_y2) %>%
-      dplyr::group_by(y2) %>%
-      dplyr::count() %>%
-      dplyr::ungroup() %>%
-      dplyr::mutate(dens2  = n/sum(n) )
-
-    joint_freq_table <- dplyr::full_join(y1_freq_table, y2_freq_table,
-                                         by = c("y1" = "y2"))
-
-
-    joint_freq_table <- joint_freq_table %>%
-      dplyr::mutate(dens1 = base::ifelse(is.na(dens1), 0 , dens1),
-                    dens2 = base::ifelse(is.na(dens2), 0 , dens2),)
-
-    TV <- 1/2 * base::sum(base::abs(joint_freq_table$dens1 - joint_freq_table$dens2))
-    return(TV)
-  }
-  if(method == "density"){
-    dens1 <- stats::density(x = y1)
-    dens2 <- stats::density(x = y2)
-
-    dens_fn <- function(dens,y){
-      # if(y < min(dens$x) | y> max(dens$x)){
-      #   #If Y is out of range, return 0
-      #   return(0)
-      # }else{
-      #   #If Y is in range, find the closest value in the grid returned by density
-      #     #This is max value returned by dens such that dens <= y
-      #   return(dens[max(which(dens$x <= y))])
-      # }
-
-      index <- base::findInterval(y, dens$x)
-      y_plus_zeros <- c(0,dens$y,0)
-      return(y_plus_zeros[index+1])
-    }
-    dens1_fn <- function(y){dens_fn(dens1,y)}
-    dens2_fn <- function(y){dens_fn(dens2,y)}
-
-    ygrid <- base::seq(from = min(c(dens1$x,dens2$x)),
-                       to = max(c(dens1$x,dens2$x)),
-                       length.out = 10000)
-
-    #Compute numeric integral of 1/2 |dens1_fn - dens2_fn|
-    TV <- 1/2* base::sum( base::abs( dens1_fn(ygrid) - dens2_fn(ygrid) ) * base::diff(ygrid)[1] )
-    return(TV)
-  }
-  else{base::stop("method must be 'density' or 'bins'")}
-}
-
-
-
-# ##Test TV function
-# y1 <- rnorm(10^2, mean = 0, sd = 1)
-# y2 <- rnorm(10^2, mean = 1, sd  = 1)
-#
-# TV_distance_fn(y1,y2)
-# TV_distance_fn(y1,y2, method = "bins")
-#
-# integrate(f = function(.x){ 1/2* abs( dnorm(.x) - dnorm(.x-1) ) } ,
-#           lower = -5, upper =5)
