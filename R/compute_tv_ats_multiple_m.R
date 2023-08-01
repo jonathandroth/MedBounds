@@ -7,10 +7,18 @@
 #' @param m Vector of the mediator variable
 #' @param y Name of the outcome variable
 #' @param w (Optional) Name of weighting variable. If null, equal weights are used
-#@param method Either "density", to use a kernel density to compute TV, or "bins", to use a discrete approximation
+#' @param at_group (Optional) Value of m specifying which always-takers to compute lower bounds of TV for.
+#' If at_group is specified, then we compute a lower bound on TV between Y(1,at_group) and Y(0,at_group) for
+#' ATs who have M(1)=M(0)=at_group. If at_group is null (the default), we compute a lower bound on
+#' the weighted average of TV across all always-takers, with weights proportional to shares in population
 #' @export
 
-compute_tv_ats_multiple_m <- function(df, d, m, y, w = NULL){
+compute_tv_ats_multiple_m <- function(df,
+                                      d,
+                                      m,
+                                      y,
+                                      at_group = NULL,
+                                      w = NULL){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -68,9 +76,9 @@ compute_tv_ats_multiple_m <- function(df, d, m, y, w = NULL){
 
     p_m_0 <- base::apply(mvalues,1, p_m_0_fn)
 
-    ## We now estimate the maximal violation of the constraints implied  by the sharp null
+    ## We now estimate the TV_kk
     ## We consider an optimization where the first part of the optimization vector corresponds to the shares of complier types
-    ## and the final vector is the violation of the moments
+    ## and the final vector is the violation of the moments (corresponding to our lb on theta_kk TV_kk)
 
     ##Create a matrix corresponding to the constraint that the sum of the m1_types must equal the marginal distribution of M among D=1
     #Create a matrix where each row i is a NROW(m1_types) length vector where the jth element indicates if the jth row of m1_types equals the ith row of mvalues
@@ -79,8 +87,11 @@ compute_tv_ats_multiple_m <- function(df, d, m, y, w = NULL){
            base::lapply(X = 1:NROW(mvalues),
                  FUN = function(i){base::apply(m1_types, 1, function(x){ base::all(x == mvalues[i,]) })}))
 
-    #Add a column of zeros to m1_marignals_constraints_matrix
-    m1_marginals_constraints_matrix <- base::cbind(m1_marginals_constraints_matrix, rep(0, NROW(m1_marginals_constraints_matrix)))
+    #Add a matrix of zeros to m1_marignals_constraints_matrix with length NROW(mvalues)
+    m1_marginals_constraints_matrix <- base::cbind(m1_marginals_constraints_matrix,
+                                                   matrix(0,
+                                                          nrow = NROW(m1_marginals_constraints_matrix),
+                                                          ncol = NROW(mvalues)))
 
     ##Create a matrix corresponding to the constraint that the sum of the m1_types must equal the marginal distribution of M among D=0
     #Create a matrix where each row i is a NROW(m0_types) length vector where the jth element indicates if the jth row of m0_types equals the ith row of mvalues
@@ -89,8 +100,11 @@ compute_tv_ats_multiple_m <- function(df, d, m, y, w = NULL){
              base::lapply(X = 1:NROW(mvalues),
                   FUN = function(i){base::apply(m0_types, 1, function(x){ base::all(x == mvalues[i,]) })}))
 
-    #Add a column of zeros to m0_marignals_constraints_matrix
-    m0_marginals_constraints_matrix <- base::cbind(m0_marginals_constraints_matrix, rep(0, NROW(m0_marginals_constraints_matrix)))
+    #Add a matrix of zeros to m0_marignals_constraints_matrix
+    m0_marginals_constraints_matrix <- base::cbind(m0_marginals_constraints_matrix,
+                                                   matrix(0,
+                                                          nrow = NROW(m0_marginals_constraints_matrix),
+                                                          ncol = NROW(mvalues)))
 
 
     ##Create a constraint corresponding to the constraint that max_p_diffs must be greater than or equal to the sum of all complier types that end up at a given mvalue
@@ -100,8 +114,10 @@ compute_tv_ats_multiple_m <- function(df, d, m, y, w = NULL){
         base::lapply(X = 1:NROW(mvalues),
                      FUN = function(i){base::sapply(1:NROW(m1_types), function(s){ base::all(m1_types[s,] == mvalues[i,]) & !base::all(m0_types[s,] == m0_types[i,]) })}))
 
-    #Add a column of 1s to complier_constraints_matrix
-    complier_constraints_matrix <- base::cbind(complier_constraints_matrix, rep(1, NROW(complier_constraints_matrix)))
+    #Add an identity matrix to complier_constraints_matrix
+      # Thus the end vector corresponds to violation of kth moment, i.e. theta_kk TV_k
+    complier_constraints_matrix <- base::cbind(complier_constraints_matrix,
+                                               diag(NROW(mvalues)))
 
     #Combine the constraint matrices
     constraints_matrix <- base::rbind(m1_marginals_constraints_matrix, m0_marginals_constraints_matrix, complier_constraints_matrix)
@@ -112,9 +128,15 @@ compute_tv_ats_multiple_m <- function(df, d, m, y, w = NULL){
     #Specify the direction of the equalities/inequalities
     dir <- c(rep("==", 2*NROW(m1_marginals_constraints_matrix)), rep(">=", NROW(max_p_diffs)))
 
-    #Specify the bounds on the optimization vector: all but the last element must be between 0 and 1, and the last element must be between 0 and Inf
+    #Specify the bounds on the optimization vector:
+    # The elements in the first part of the optimizaiton vector are probabilities, thus btwn 0 and 1
+    # The bounds theta_kk TV_k must be >= 0
     # Put this in a list with elements lower and upper
-    bounds <- list(lower = c(rep(0, NCOL(constraints_matrix)-1), 0), upper = c(rep(1, NCOL(constraints_matrix)-1), Inf))
+    bounds <- list(lower = rep(0, NCOL(constraints_matrix)),
+                   upper = c(rep(1, NCOL(constraints_matrix)-NROW(mvalues)),
+                             rep(Inf, NROW(mvalues))) )
+
+    ##Specify the objective
 
     #Use Rglpk to solve the linear program to minimize the violation of the constraints
     max_violation <- Rglpk::Rglpk_solve_LP(obj = c(rep(0, NCOL(constraints_matrix)-1), 1),
@@ -126,6 +148,90 @@ compute_tv_ats_multiple_m <- function(df, d, m, y, w = NULL){
 
     #Return the maximal violation
     return(max_violation$optimum)
+}
+
+
+#' @title Wrapper for Rglpk_solve_lp that implements linear fractional programming
+#' @param obj_numerator The objective vector for the numerator of the linear fractional program
+#' @param obj_deonminator The objective vector for the denominator of the linear fractional program. Note that the denominator must be strictly positive over all feasible values (if not, we return a warning and NaN for the value)
+#' @param mat The constraint matrix
+#' @param dir The direction of the constraints
+#' @param rhs The right hand side of the constraints
+#' @param bounds The bounds on the optimization vector
+#' @param max (Optional) Whether to maximize or minimize the objective
+#' @param constant_numerator (Optional) A constant to add to the numerator of the linear fractional program
+#' @param constant_denominator (Optional) A constant to add to the denominator of the linear fractional program
+#' @param ... (Optional) Additional arguments to be passed to Rglpk_solve_lp
+#' @return The optimal value of the linear fractional program
+
+Rglpk_solve_fractional_LP <- function(obj_numerator,
+                                      obj_denominator,
+                                      mat,
+                                      dir,
+                                      rhs,
+                                      bounds,
+                                      max = FALSE,
+                                      constant_numerator = 0,
+                                      constant_denominator = 0,
+                                      ...){
+
+  #First, check that the minimum value of the denominator is positive
+  denom_lp <- Rglpk::Rglpk_solve_LP(obj = obj_denominator,
+                                    mat = mat,
+                                    dir = dir,
+                                    rhs = rhs,
+                                    bounds = bounds,
+                                    max = FALSE,
+                                    ...)
+
+  if(denom_lp$optimum + constant_denominator <= 0){
+    warning("The minimum value of the denominator is not positive. Returning NaN.")
+    return(NaN)
+  }
+
+  #We use the Charnes Cooper transformation to convert the linear fractional program into a linear program
+  #We add a new optimization variable t>=0
+  # The new objective is obj_numerator * (original optimization vector) / obj_denominator + constant_numerator * t
+  # The new constraints are :
+  # mat * (original optimization_vector) (<=/ == / >=) rhs * t
+  # obj_denominator * (original optimization_vector) + constant_denominator * t = 1
+  #
+  obj_flp <- c(obj_numerator, constant_numerator)
+
+  #Add -rhs as a column to A, then convert rhs to zero
+  mat_flp <- base::cbind(mat, -rhs)
+  rhs_flp <- rep(0, NROW(rhs))
+
+  #Add the constraint obj_denominator * (orignal optimization vector) + constant_denominator * t = 1
+  mat_flp <- rbind(mat_flp,
+                   c(obj_denominator, constant_denominator))
+
+  #Update the rhs with this new constraint
+  rhs_flp <- c(rhs_flp, 1)
+
+  #Update dir with this new constraint
+  dir_flp <- c(dir, "==")
+
+  #Since t>=0 and by default bounds uses bounds of [0,Inf) we don't need to update bounds
+  bounds_flp <- bounds
+
+  #Solve the converted fraciton linear program
+  fractional_lp_solution <- Rglpk::Rglpk_solve_LP(obj = obj_flp,
+                                       mat = mat_flp,
+                                       dir = dir_flp,
+                                       rhs = rhs_flp,
+                                       bounds = bounds_flp,
+                                       max = max,
+                                       ...)
+
+  #Convert the fractional_lp_solution back to the original by dividing by t (the last element of the optimization vector)
+  original_lp_solution <- fractional_lp_solution$optimum[-length(fractional_lp_solution$optimum)]/fractional_lp_solution$optimum[length(fractional_lp_solution$optimum)]
+
+  #Return the results
+  return(list(optimum = fractional_lp_solution$optimum,
+              solution = original_lp_solution,
+              status = fractional_lp_solution$status,
+              transformed_lp_solution = fractional_lp_solution))
 }
 
 
