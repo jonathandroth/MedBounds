@@ -1,0 +1,331 @@
+#' @title Bounds on fraction of always-takers affected with a multi-dimensional m
+#'@description Computes  a lower bound on the TV distance btwn Y(1,m) and Y(0,m) for always takers
+#' who have M(1)=M(0)=m
+#' This is a lower bound on the fraction of these ATs for whom there is a direct effect of D on Y
+#' @param df A data frame
+#' @param d Name of the treatment variable in the df
+#' @param m Vector of the mediator variable
+#' @param y Name of the outcome variable
+#' @param w (Optional) Name of weighting variable. If null, equal weights are used
+#@param method Either "density", to use a kernel density to compute TV, or "bins", to use a discrete approximation
+#' @export
+
+compute_tv_ats_multiple_m <- function(df, d, m, y, w = NULL){
+
+  yvec <- df[[y]]
+  dvec <- df[[d]]
+  mdf <- df[,m]
+
+  if(is.null(w)){
+    wvec <- rep(1, NROW(df))
+  }else{
+    wvec <- df[[w]]
+  }
+
+  max_p_diffs_list <- compute_max_p_difference(dvec = dvec,
+                                               mdf = mdf,
+                                               yvec = yvec,
+                                               wvec=wvec)
+  max_p_diffs <- max_p_diffs_list$max_p_diffs
+  mvalues <- max_p_diffs_list$mvalues
+
+
+    #Now, we create a linear program to find compliance types that minimize the TV distance
+
+    #Create a list of all possible compliance types. This is all possible pairwise combinations of unique rows of mdf
+     #First, create a data frame containing all combinations of the row numbers of mvalues
+    mvalues_df <- base::expand.grid(1:NROW(mvalues), 1:NROW(mvalues))
+    m0_types <- mvalues[mvalues_df[,1],]
+    m1_types <- mvalues[mvalues_df[,2],]
+
+    #Determine which rows of m0_types are weakly less than the corresponding row in m1_types
+    monotonic_types <- base::sapply(1:NROW(m0_types),
+                                    FUN = function(i){
+                                      base::all(m0_types[i,] <= m1_types[i,])})
+
+    #Restrict to the types satisfying monotonicity
+    m0_types <- m0_types[monotonic_types,]
+    m1_types <- m1_types[monotonic_types,]
+
+
+    #Compute the marginal distribution of M among D=1
+    p_m_1_fn <- function(mvalue){
+      mdf1 <- mdf[dvec ==1,]
+      M_equals_mvalue <- sapply(1:NROW(mdf1), function(i){all(mdf1[i,]==mvalue)} )
+      return(stats::weighted.mean( x = M_equals_mvalue,
+                                   weights = wvec[dvec == 1]/sum(wvec[dvec == 1])))
+    }
+
+    p_m_1 <- base::apply(mvalues,1, p_m_1_fn)
+
+    #Compute the marginal distribution of M among D=0
+    p_m_0_fn <- function(mvalue){
+      mdf0 <- mdf[dvec ==0,]
+      M_equals_mvalue <- sapply(1:NROW(mdf0), function(i){all(mdf0[i,]==mvalue)} )
+      return(stats::weighted.mean( x = M_equals_mvalue,
+                                   weights = wvec[dvec == 0]/sum(wvec[dvec == 0])))
+    }
+
+    p_m_0 <- base::apply(mvalues,1, p_m_0_fn)
+
+    ## We now estimate the maximal violation of the constraints implied  by the sharp null
+    ## We consider an optimization where the first part of the optimization vector corresponds to the shares of complier types
+    ## and the final vector is the violation of the moments
+
+    ##Create a matrix corresponding to the constraint that the sum of the m1_types must equal the marginal distribution of M among D=1
+    #Create a matrix where each row i is a NROW(m1_types) length vector where the jth element indicates if the jth row of m1_types equals the ith row of mvalues
+    m1_marginals_constraints_matrix <-
+    Reduce(rbind,
+           base::lapply(X = 1:NROW(mvalues),
+                 FUN = function(i){base::apply(m1_types, 1, function(x){ base::all(x == mvalues[i,]) })}))
+
+    #Add a column of zeros to m1_marignals_constraints_matrix
+    m1_marginals_constraints_matrix <- base::cbind(m1_marginals_constraints_matrix, rep(0, NROW(m1_marginals_constraints_matrix)))
+
+    ##Create a matrix corresponding to the constraint that the sum of the m1_types must equal the marginal distribution of M among D=0
+    #Create a matrix where each row i is a NROW(m0_types) length vector where the jth element indicates if the jth row of m0_types equals the ith row of mvalues
+    m0_marginals_constraints_matrix <-
+      Reduce(rbind,
+             base::lapply(X = 1:NROW(mvalues),
+                  FUN = function(i){base::apply(m0_types, 1, function(x){ base::all(x == mvalues[i,]) })}))
+
+    #Add a column of zeros to m0_marignals_constraints_matrix
+    m0_marginals_constraints_matrix <- base::cbind(m0_marginals_constraints_matrix, rep(0, NROW(m0_marginals_constraints_matrix)))
+
+
+    ##Create a constraint corresponding to the constraint that max_p_diffs must be greater than or equal to the sum of all complier types that end up at a given mvalue
+    #Create a matrix where each row i is a NROW(m1_types) length vector where the jth element indicates if the jth row of m1_types equals the ith row of mvalues and the jth row of m1_types is not exactly equal to the jth row of m0_types
+    complier_constraints_matrix <-
+      Reduce(rbind,
+        base::lapply(X = 1:NROW(mvalues),
+                     FUN = function(i){base::sapply(1:NROW(m1_types), function(s){ base::all(m1_types[s,] == mvalues[i,]) & !base::all(m0_types[s,] == m0_types[i,]) })}))
+
+    #Add a column of 1s to complier_constraints_matrix
+    complier_constraints_matrix <- base::cbind(complier_constraints_matrix, rep(1, NROW(complier_constraints_matrix)))
+
+    #Combine the constraint matrices
+    constraints_matrix <- base::rbind(m1_marginals_constraints_matrix, m0_marginals_constraints_matrix, complier_constraints_matrix)
+
+    #Combine the constants associated with the matrices
+    d <- c(p_m_1, p_m_0, max_p_diffs)
+
+    #Specify the direction of the equalities/inequalities
+    dir <- c(rep("==", 2*NROW(m1_marginals_constraints_matrix)), rep(">=", NROW(max_p_diffs)))
+
+    #Specify the bounds on the optimization vector: all but the last element must be between 0 and 1, and the last element must be between 0 and Inf
+    # Put this in a list with elements lower and upper
+    bounds <- list(lower = c(rep(0, NCOL(constraints_matrix)-1), 0), upper = c(rep(1, NCOL(constraints_matrix)-1), Inf))
+
+    #Use Rglpk to solve the linear program to minimize the violation of the constraints
+    max_violation <- Rglpk::Rglpk_solve_LP(obj = c(rep(0, NCOL(constraints_matrix)-1), 1),
+                                           mat = constraints_matrix,
+                                           dir = dir,
+                                           rhs = d,
+                                           bounds = bounds,
+                                           max = FALSE)
+
+    #Return the maximal violation
+    return(max_violation$optimum)
+}
+
+
+compute_max_p_difference <- function(dvec, mdf, yvec, wvec=NULL,...){
+
+  compute_max_p_difference_helper <- function(mvalue){
+
+    #Find all the rows of mdf that equal mvalue
+    mindex <- base::apply(mdf, 1, function(x){ base::all(x == mvalue) })
+
+    #Compute density of y among units with m=mvalue and d=1
+      #Check if there are any units with m=mvalue and d=1
+      #If not, return 0; otherwise, return density
+    if(sum(mindex & dvec == 1) == 0){
+      dens_y_1 <- function(ygrid){return(0*ygrid)}
+    }else{
+      dens_y_1 <-
+      get_density_fn(x = yvec[mindex & dvec == 1],
+                     weights = wvec[mindex & dvec == 1]/sum(wvec[mindex & dvec == 1]),
+                     ...)
+    }
+
+    #Compute density of y among units with m=mvalue and d=0
+      #Check if there are any units with m=mvalue and d=1
+      #If not, return 0; otherwise, return density
+    if(sum(mindex & dvec == 0) == 0){
+      dens_y_0 <- function(ygrid){return(0*ygrid)}
+    }else{
+      dens_y_0 <-
+        get_density_fn(x = yvec[mindex & dvec == 0],
+                       weights = wvec[mindex & dvec == 0]/sum(wvec[mindex & dvec == 0]),
+                       ...)
+    }
+
+    #Compute probability of M=mvalue among D=1 units
+    p_m_1 <- stats::weighted.mean( x = mindex[dvec == 1],
+                                   weights = wvec)
+
+    p_m_0 <- stats::weighted.mean( x = mindex[dvec == 0],
+                                   weights = wvec)
+
+    #Compute integral of max{p_m_1*dens_y_1, p_m_0*dens_y_0} over y
+    ygrid <- seq(from = base::min(yvec) - 3* stats::sd(yvec),
+                 to = base::max(yvec) + 3* stats::sd(yvec) ,
+                 length.out = 10000)
+
+    positive_part <- function(y){ base::pmax(y,0) }
+
+    max_p_diff <- base::sum( positive_part( p_m_1*dens_y_1(ygrid) - p_m_0*dens_y_0(ygrid) ) ) * base::diff(ygrid)[1]
+
+    return(max_p_diff)
+  }
+
+  #Compute the max p difference over all unique values of m
+  mvalues <- base::unique(mdf)
+
+  max_p_diffs <- base::apply(mvalues, 1, compute_max_p_difference_helper)
+
+  return(list(mvalues = mvalues,
+             max_p_diffs = max_p_diffs))
+}
+
+compute_partial_densities_and_shares <-
+  function(df, d, m, y, w= NULL,...){
+    yvec <- df[[y]]
+    dvec <- df[[d]]
+    mvec <- df[[m]]
+
+    if(is.null(w)){
+      wvec <- rep(1, NROW(df))
+    }else{
+      wvec <- df[[w]]
+    }
+
+
+    frac_compliers <- stats::weighted.mean( mvec[dvec == 1], w = wvec[dvec == 1] ) -
+      stats::weighted.mean( mvec[dvec == 0], w = wvec[dvec == 0])
+    frac_ats <- stats::weighted.mean( mvec[dvec == 0], w= wvec[dvec == 0] )
+    theta_ats <- frac_ats / (frac_compliers + frac_ats) #fraction among Cs/ATs
+
+    ats_untreated_index <- (dvec == 0) & (mvec == 1) #these are ATs when untreated
+    ats_treated_index <- (dvec == 1) & (mvec == 1) #these are ATs or Cs
+
+    y_ats_treated <- yvec[ats_treated_index]
+    y_ats_untreated <- yvec[ats_untreated_index]
+
+    w_ats_treated <- wvec[ats_treated_index]
+    w_ats_untreated <- wvec[ats_untreated_index]
+
+    #The density function doesn't normalize weights, so normalize these
+    w_ats_treated <- w_ats_treated/sum(w_ats_treated)
+    w_ats_untreated <- w_ats_untreated/sum(w_ats_untreated)
+
+    dens_y_ats_treated <- get_density_fn(x = y_ats_treated, weights = w_ats_treated, ...)
+    dens_y_ats_untreated <- get_density_fn(x = y_ats_untreated, weights = w_ats_untreated, ...)
+
+    f_partial11 <- function(y){ (frac_ats + frac_compliers) * dens_y_ats_treated(y) }
+    f_partial01 <- function(y){ frac_ats  * dens_y_ats_untreated(y) }
+
+    resultsList <-
+      list(frac_compliers = frac_compliers,
+           frac_ats = frac_ats,
+           theta_ats = theta_ats,
+           f_partial11 = f_partial11,
+           f_partial01 = f_partial01)
+
+    return(resultsList)
+
+  }
+
+
+get_density_fn <- function(x,...){
+
+  dens <- stats::density(x=x,...)
+  #Create a function that returns the density at any point
+  # Return 0 if outside of range of dens$x
+  # Otherwise, return the density at the largest pt in dens$x below y
+  dens_fn <- function(y){
+    index <- base::findInterval(y, dens$x)
+    y_plus_zeros <- c(0,dens$y,0)
+    return(y_plus_zeros[index+1])
+  }
+
+  return(dens_fn)
+}
+
+TV_distance_fn <- function(y1,
+                           y2,
+                           method = "density",
+                           numbins = ceiling(length(y1)/20)){
+
+  if(method == "bins"){
+    binned_y <- dplyr::ntile( c(y1,y2), numbins)
+
+    binned_y1 <- binned_y[(1:length(y1))]
+    binned_y2 <- binned_y[-(1:length(y1))]
+
+    y1_freq_table <- data.frame(y1 = binned_y1) %>%
+      dplyr::group_by(y1) %>%
+      dplyr::count() %>%
+      dplyr::ungroup() %>%
+      dplyr::mutate(dens1  = n/base::sum(n) )
+
+    y2_freq_table <- data.frame(y2 = binned_y2) %>%
+      dplyr::group_by(y2) %>%
+      dplyr::count() %>%
+      dplyr::ungroup() %>%
+      dplyr::mutate(dens2  = n/sum(n) )
+
+    joint_freq_table <- dplyr::full_join(y1_freq_table, y2_freq_table,
+                                         by = c("y1" = "y2"))
+
+
+    joint_freq_table <- joint_freq_table %>%
+      dplyr::mutate(dens1 = base::ifelse(is.na(dens1), 0 , dens1),
+                    dens2 = base::ifelse(is.na(dens2), 0 , dens2),)
+
+    TV <- 1/2 * base::sum(base::abs(joint_freq_table$dens1 - joint_freq_table$dens2))
+    return(TV)
+  }
+  if(method == "density"){
+    dens1 <- stats::density(x = y1)
+    dens2 <- stats::density(x = y2)
+
+    dens_fn <- function(dens,y){
+      # if(y < min(dens$x) | y> max(dens$x)){
+      #   #If Y is out of range, return 0
+      #   return(0)
+      # }else{
+      #   #If Y is in range, find the closest value in the grid returned by density
+      #     #This is max value returned by dens such that dens <= y
+      #   return(dens[max(which(dens$x <= y))])
+      # }
+
+      index <- base::findInterval(y, dens$x)
+      y_plus_zeros <- c(0,dens$y,0)
+      return(y_plus_zeros[index+1])
+    }
+    dens1_fn <- function(y){dens_fn(dens1,y)}
+    dens2_fn <- function(y){dens_fn(dens2,y)}
+
+    ygrid <- base::seq(from = min(c(dens1$x,dens2$x)),
+                       to = max(c(dens1$x,dens2$x)),
+                       length.out = 10000)
+
+    #Compute numeric integral of 1/2 |dens1_fn - dens2_fn|
+    TV <- 1/2* base::sum( base::abs( dens1_fn(ygrid) - dens2_fn(ygrid) ) * base::diff(ygrid)[1] )
+    return(TV)
+  }
+  else{base::stop("method must be 'density' or 'bins'")}
+}
+
+
+
+# ##Test TV function
+# y1 <- rnorm(10^2, mean = 0, sd = 1)
+# y2 <- rnorm(10^2, mean = 1, sd  = 1)
+#
+# TV_distance_fn(y1,y2)
+# TV_distance_fn(y1,y2, method = "bins")
+#
+# integrate(f = function(.x){ 1/2* abs( dnorm(.x) - dnorm(.x-1) ) } ,
+#           lower = -5, upper =5)
