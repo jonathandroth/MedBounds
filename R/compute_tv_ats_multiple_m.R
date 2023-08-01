@@ -1,7 +1,7 @@
-#' @title Bounds on fraction of always-takers affected with a multi-dimensional m
+#' @title Bounds on fraction of always-takers affected with a multi-valued discrete or multi-dimensional discrete m
 #'@description Computes  a lower bound on the TV distance btwn Y(1,m) and Y(0,m) for always takers
-#' who have M(1)=M(0)=m
-#' This is a lower bound on the fraction of these ATs for whom there is a direct effect of D on Y
+#' who have M(1)=M(0)=m if at_group=m. This is a lower bound on the fraction of these ATs for whom there is a direct effect of D on Y
+#' If at_group=NULL, it computes a lower bound on the weighted average across all ATs, weighted by their proportion in the population
 #' @param df A data frame
 #' @param d Name of the treatment variable in the df
 #' @param m Vector of the mediator variable
