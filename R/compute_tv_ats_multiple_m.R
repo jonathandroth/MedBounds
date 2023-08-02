@@ -11,6 +11,7 @@
 #' If at_group is specified, then we compute a lower bound on TV between Y(1,at_group) and Y(0,at_group) for
 #' ATs who have M(1)=M(0)=at_group. If at_group is null (the default), we compute a lower bound on
 #' the weighted average of TV across all always-takers, with weights proportional to shares in population
+#' @param continuous_Y (Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.
 #' @export
 
 compute_tv_ats_multiple_m <- function(df,
@@ -18,7 +19,8 @@ compute_tv_ats_multiple_m <- function(df,
                                       m,
                                       y,
                                       at_group = NULL,
-                                      w = NULL){
+                                      w = NULL,
+                                      continuous_Y = TRUE){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -33,7 +35,8 @@ compute_tv_ats_multiple_m <- function(df,
   max_p_diffs_list <- compute_max_p_difference(dvec = dvec,
                                                mdf = mdf,
                                                yvec = yvec,
-                                               wvec=wvec)
+                                               wvec=wvec,
+                                               continuous_Y = continuous_Y)
   max_p_diffs <- max_p_diffs_list$max_p_diffs
   mvalues <- max_p_diffs_list$mvalues
 
@@ -288,13 +291,16 @@ Rglpk_solve_fractional_LP <- function(obj_numerator,
 }
 
 
-compute_max_p_difference <- function(dvec, mdf, yvec, wvec=NULL,...){
+compute_max_p_difference <- function(dvec, mdf, yvec, wvec=NULL,
+                                     continuous_Y = TRUE,...){
 
   compute_max_p_difference_helper <- function(mvalue){
-
-    #Find all the rows of mdf that equal mvalue
+      #Find all the rows of mdf that equal mvalue
     mindex <- base::apply(mdf, 1, function(x){ base::all(x == mvalue) })
 
+    #We now compute the partial densities / PMFs, depending on whether Y is cts
+
+    if(continuous_Y == TRUE){
     #Compute density of y among units with m=mvalue and d=1
       #Check if there are any units with m=mvalue and d=1
       #If not, return 0; otherwise, return density
@@ -319,6 +325,19 @@ compute_max_p_difference <- function(dvec, mdf, yvec, wvec=NULL,...){
                        ...)
     }
 
+    }else{
+      yvalues <- unique(yvec[mindex])
+      pmf_y_1 <- purrr::map_dbl(.x = 1:length(yvalues),
+                                .f = ~stats::weighted.mean(x = yvec[mindex & dvec==1]== yvalues[.x],
+                                                          w = wvec[mindex & dvec==1]) )
+
+      pmf_y_0 <- purrr::map_dbl(.x = 1:length(yvalues),
+                                .f = ~stats::weighted.mean(x = yvec[mindex & dvec==0]== yvalues[.x],
+                                                          w = wvec[mindex & dvec==0]) )
+
+
+    }
+
     #Compute probability of M=mvalue among D=1 units
     p_m_1 <- stats::weighted.mean( x = mindex[dvec == 1],
                                    weights = wvec)
@@ -326,7 +345,8 @@ compute_max_p_difference <- function(dvec, mdf, yvec, wvec=NULL,...){
     p_m_0 <- stats::weighted.mean( x = mindex[dvec == 0],
                                    weights = wvec)
 
-    #Compute integral of max{p_m_1*dens_y_1, p_m_0*dens_y_0} over y
+    if(continuous_Y == TRUE){
+    #If continuous Compute integral of max{p_m_1*dens_y_1, p_m_0*dens_y_0} over y
     ygrid <- seq(from = base::min(yvec) - 3* stats::sd(yvec),
                  to = base::max(yvec) + 3* stats::sd(yvec) ,
                  length.out = 10000)
@@ -334,6 +354,13 @@ compute_max_p_difference <- function(dvec, mdf, yvec, wvec=NULL,...){
     positive_part <- function(y){ base::pmax(y,0) }
 
     max_p_diff <- base::sum( positive_part( p_m_1*dens_y_1(ygrid) - p_m_0*dens_y_0(ygrid) ) ) * base::diff(ygrid)[1]
+    }else{
+      #If discrete, compute positive part of partial PMF diffs
+      partial_pmf_1 <- p_m_1 * pmf_y_1
+      partial_pmf_0 <- p_m_0 * pmf_y_0
+
+      max_p_diff <- base::sum(base::pmax(partial_pmf_1-partial_pmf_0,0))
+    }
 
     return(max_p_diff)
   }
