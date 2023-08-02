@@ -182,7 +182,7 @@ compute_tv_ats_multiple_m <- function(df,
     }
     #Use Rglpk to solve the fraction-linear program to minimize the weighted average of TV
       #We capture warnings if the denom can be zero
-    quiet_fractional_LP <- purrr::quietly(MedBounds::Rglpk_solve_fractional_LP)
+    quiet_fractional_LP <- purrr::quietly(MedBounds:::Rglpk_solve_fractional_LP)
     max_violation <-
       quiet_fractional_LP(
         obj_numerator = obj_numerator,
@@ -206,7 +206,7 @@ row_equals <- function(x,y){ base::all(x == y)}
 
 #' @title Wrapper for Rglpk_solve_lp that implements linear fractional programming
 #' @param obj_numerator The objective vector for the numerator of the linear fractional program
-#' @param obj_deonminator The objective vector for the denominator of the linear fractional program. Note that the denominator must be strictly positive over all feasible values (if not, we return a warning and NaN for the value)
+#' @param obj_denominator The objective vector for the denominator of the linear fractional program. Note that the denominator must be strictly positive over all feasible values (if not, we return a warning and NaN for the value)
 #' @param mat The constraint matrix
 #' @param dir The direction of the constraints
 #' @param rhs The right hand side of the constraints
