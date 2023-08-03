@@ -6,10 +6,11 @@
 #' @param m Name of the mediator variable
 #' @param y Name of the outcome variable
 #' @param w (Optional) Name of weighting variable. If null, equal weights are used
+#' @param continuous_Y (Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.
 #@param method Either "density", to use a kernel density to compute TV, or "bins", to use a discrete approximation
 #' @export
 
-compute_tv_ats <- function(df, d, m, y, w = NULL){
+compute_tv_ats <- function(df, d, m, y, w = NULL, continuous_Y = TRUE){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -21,37 +22,52 @@ compute_tv_ats <- function(df, d, m, y, w = NULL){
     wvec <- df[[w]]
   }
 
-  partial_densities_and_shares <- compute_partial_densities_and_shares(df,d,m,y,w=w)
+  #Use the general function to compute \int (partial_dens_1 - partial_dens0)_+
+  max_p_diffs <-
+  compute_max_p_difference(dvec = dvec,
+                           mdf = data.frame(m= mvec),
+                           yvec = yvec,
+                           wvec = wvec,
+                           continuous_Y = continuous_Y
+                           )
 
-  f_partial01 <- partial_densities_and_shares$f_partial01
-  f_partial11 <- partial_densities_and_shares$f_partial11
-  theta_ats <- partial_densities_and_shares$theta_ats
+  # Extract \int (partial_dens_1 - partial_dens_0)_+
+  p_diff_1 <- max_p_diffs$max_p_diffs[which(max_p_diffs$mvalues == 1)]
 
-  positive_part <- function(y){ base::pmax(y,0) }
+  # What we want is 1/share_ats * (\int (partial_dens_1 - partial_dens_0)_+ - share_compliers)
+  p_m_1 <- stats::weighted.mean(x = mvec[dvec == 1] == 1,
+                                w = wvec[dvec == 1])
+  p_m_0 <- stats::weighted.mean(x = mvec[dvec == 0] == 1,
+                                w = wvec[dvec == 0])
 
-  #Lower bound is 1/theta_{AT} \int positive_part( f_partial01 - f_partial11 )
-  #Implement this numerically over a grid of 10,000 points
+  frac_compliers <- p_m_1 - p_m_0
+  frac_ats <- p_m_0
 
-  ygrid <- seq(from = base::min(yvec) - 3* stats::sd(yvec),
-               to = base::max(yvec) + 3* stats::sd(yvec) ,
-               length.out = 10000)
+  tv_lb <- 1/frac_ats * pmax(0,p_diff_1 - frac_compliers)
 
-  TV_lb <-
-    1/theta_ats *
-  base::sum( positive_part( f_partial01(ygrid) - f_partial11(ygrid) ) ) * base::diff(ygrid)[1]
-
-
-  # ##Old approach using non-sharp bounds
-  # #Compute TV distance between outcome when D=1,M=1 versus D=0,M=1
-  # TV_11_vs_10 <- TV_distance_fn( y_ats_treated,
-  #                                y_ats_untreated,
-  #                                method = method)
+  # ### Below is our old, more direct computation that doesn't use functions from the multiple m case
+  # partial_densities_and_shares <- compute_partial_densities_and_shares(df,d,m,y,w=w)
   #
-  # #Lower bound on TV of Y(1,1) vs Y(0,1) for ATs is:
-  # # 1/theta_ats * (TV_11_vs_10 - (1-theta_ats))
-  # TV_lb <- max(1/theta_ats * (TV_11_vs_10 - (1-theta_ats)), 0)
+  # f_partial01 <- partial_densities_and_shares$f_partial01
+  # f_partial11 <- partial_densities_and_shares$f_partial11
+  # theta_ats <- partial_densities_and_shares$theta_ats
   #
-  return(TV_lb)
+  # positive_part <- function(y){ base::pmax(y,0) }
+  #
+  # #Lower bound is 1/theta_{AT} \int positive_part( f_partial01 - f_partial11 )
+  # #Implement this numerically over a grid of 10,000 points
+  #
+  # ygrid <- seq(from = base::min(yvec) - 3* stats::sd(yvec),
+  #              to = base::max(yvec) + 3* stats::sd(yvec) ,
+  #              length.out = 10000)
+  #
+  # TV_lb <-
+  #   1/theta_ats *
+  # base::sum( positive_part( f_partial01(ygrid) - f_partial11(ygrid) ) ) * base::diff(ygrid)[1]
+
+
+
+  return(tv_lb)
 }
 
 
