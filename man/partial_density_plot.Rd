@@ -4,7 +4,17 @@
 \alias{partial_density_plot}
 \title{Create plots of partial densities}
 \usage{
-partial_density_plot(df, d, m, y, numGridPoints = 10000)
+partial_density_plot(
+  df,
+  d,
+  m,
+  y,
+  numGridPoints = 10000,
+  plot_nts = FALSE,
+  density_1_label = "f(Y,M=1|D=1)",
+  density_0_label = "f(Y,M=1|D=0)",
+  continuous_Y = TRUE
+)
 }
 \arguments{
 \item{df}{A data frame}
@@ -16,10 +26,18 @@ partial_density_plot(df, d, m, y, numGridPoints = 10000)
 \item{y}{Name of the outcome variable}
 
 \item{numGridPoints}{Number of points used in grid for graphing}
+
+\item{plot_nts}{(Optional) If TRUE, we plot f_{Y,M=0 | D=1} and f_{Y,M=0 | D=0}. Otherwise, we plot f_{Y,M=1 | D=1} and f_{Y,M=1 | D=0}. Default is FALSE}
+
+\item{density_1_label}{(Optional) The label on the plot for the d=1 density.}
+
+\item{density_0_label}{(Optional) The label on the plot for the d=0 density.}
+
+\item{continuous_Y}{(Optional) Should Y be treated as continuous for density estimation. Default is TRUE. Use FALSE for discrete Y}
 }
 \value{
 A ggplot object showing partial densities
 }
 \description{
-Plots f_{Y,M=1 | D=1} and f_{Y,M=1 | D=0}
+Plots f_{Y,M=m | D=1} and f_{Y,M=m | D=0} for m equal to 0 or 1
 }

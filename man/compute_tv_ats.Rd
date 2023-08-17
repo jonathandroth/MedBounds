@@ -4,7 +4,7 @@
 \alias{compute_tv_ats}
 \title{Bounds on fraction of always-takers affected}
 \usage{
-compute_tv_ats(df, d, m, y, w = NULL)
+compute_tv_ats(df, d, m, y, w = NULL, continuous_Y = TRUE)
 }
 \arguments{
 \item{df}{A data frame}
@@ -16,6 +16,8 @@ compute_tv_ats(df, d, m, y, w = NULL)
 \item{y}{Name of the outcome variable}
 
 \item{w}{(Optional) Name of weighting variable. If null, equal weights are used}
+
+\item{continuous_Y}{(Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.}
 }
 \description{
 Computes bounds on the TV distance btwn Y(1,1) and Y(1,0) for always takers

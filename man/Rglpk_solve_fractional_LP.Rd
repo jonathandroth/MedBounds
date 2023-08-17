@@ -20,6 +20,8 @@ Rglpk_solve_fractional_LP(
 \arguments{
 \item{obj_numerator}{The objective vector for the numerator of the linear fractional program}
 
+\item{obj_denominator}{The objective vector for the denominator of the linear fractional program. Note that the denominator must be strictly positive over all feasible values (if not, we return a warning and NaN for the value)}
+
 \item{mat}{The constraint matrix}
 
 \item{dir}{The direction of the constraints}
@@ -35,8 +37,6 @@ Rglpk_solve_fractional_LP(
 \item{constant_denominator}{(Optional) A constant to add to the denominator of the linear fractional program}
 
 \item{...}{(Optional) Additional arguments to be passed to Rglpk_solve_lp}
-
-\item{obj_deonminator}{The objective vector for the denominator of the linear fractional program. Note that the denominator must be strictly positive over all feasible values (if not, we return a warning and NaN for the value)}
 }
 \value{
 The optimal value of the linear fractional program

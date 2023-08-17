@@ -4,7 +4,15 @@
 \alias{compute_tv_ats_multiple_m}
 \title{Bounds on fraction of always-takers affected with a multi-valued discrete or multi-dimensional discrete m}
 \usage{
-compute_tv_ats_multiple_m(df, d, m, y, at_group = NULL, w = NULL)
+compute_tv_ats_multiple_m(
+  df,
+  d,
+  m,
+  y,
+  at_group = NULL,
+  w = NULL,
+  continuous_Y = TRUE
+)
 }
 \arguments{
 \item{df}{A data frame}
@@ -21,6 +29,8 @@ ATs who have M(1)=M(0)=at_group. If at_group is null (the default), we compute a
 the weighted average of TV across all always-takers, with weights proportional to shares in population}
 
 \item{w}{(Optional) Name of weighting variable. If null, equal weights are used}
+
+\item{continuous_Y}{(Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.}
 }
 \description{
 Computes  a lower bound on the TV distance btwn Y(1,m) and Y(0,m) for always takers

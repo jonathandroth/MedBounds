@@ -72,7 +72,7 @@ compute_tv_ats <- function(df, d, m, y, w = NULL, continuous_Y = TRUE){
 
 
 compute_partial_densities_and_shares <-
-  function(df, d, m, y, w= NULL,...){
+  function(df, d, m, y, w= NULL,continuous_Y=TRUE,...){
     yvec <- df[[y]]
     dvec <- df[[d]]
     mvec <- df[[m]]
@@ -102,6 +102,7 @@ compute_partial_densities_and_shares <-
     w_ats_treated <- w_ats_treated/sum(w_ats_treated)
     w_ats_untreated <- w_ats_untreated/sum(w_ats_untreated)
 
+    if(continuous_Y){
     dens_y_ats_treated <- get_density_fn(x = y_ats_treated, weights = w_ats_treated, ...)
     dens_y_ats_untreated <- get_density_fn(x = y_ats_untreated, weights = w_ats_untreated, ...)
 
@@ -116,7 +117,30 @@ compute_partial_densities_and_shares <-
            f_partial01 = f_partial01)
 
     return(resultsList)
+    }else{
+      yvalues <- unique(yvec)
+      pmf_y_ats_treated <- purrr::map_dbl(.x = 1:length(yvalues),
+                                          .f = ~stats::weighted.mean(x = y_ats_treated == yvalues[.x],
+                                                                     w = w_ats_treated))
 
+      pmf_y_ats_untreated <- purrr::map_dbl(.x = 1:length(yvalues),
+                                            .f = ~stats::weighted.mean(x = y_ats_untreated == yvalues[.x],
+                                                                       w = w_ats_untreated))
+
+      pmf_partial_11 <- (frac_ats + frac_compliers) * pmf_y_ats_treated
+      pmf_partial_01 <- (frac_ats) * pmf_y_ats_untreated
+
+      resultsList <-
+        list(frac_compliers = frac_compliers,
+             frac_ats = frac_ats,
+             theta_ats = theta_ats,
+             pmf_partial11 = pmf_partial_11,
+             pmf_partial01 = pmf_partial_01,
+             yvalues = yvalues)
+
+      return(resultsList)
+
+    }
   }
 
 
