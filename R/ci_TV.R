@@ -1,28 +1,34 @@
-#' @title Hypothesis test for the sharp null
-#' @description This function tests the sharp null of Y(1,m) = Y(0,m). The
-#'   outcome and mediator are both assumed to take finitely many different
-#'   values. The inference is via applying Fang et al. (2023; FSST)
+#' @title Construct confidence interval for total variation
+#' @description This function calculates a confidence interval for the total
+#'   variation for a given always taker group. The inference is via inverting
+#'   the test of Fang et al. (2023; FSST)
 #' @param df A data frame
 #' @param d Name of the treatment variable in the df
 #' @param m Name of the mediator variable
 #' @param y Name of the outcome variable, which is assumed to take a discrete
 #'   support
+#' @param at_group Indicates for which always-taker group the confidence
+#'   interval is calculated for. It can take any value in the support of M.
 #' @param ordering A list with length equal to the cardinality of the support of
 #'   the mediator variable. The name of each element corresponds to a point in
 #'   the support, and each element is a vector that collects all m values that
 #'   are less than or equal to this point. If ordering = NULL, the standard
 #'   ordering is used.
 #' @param B Bootstrap size, default is zero
+#' @param alpha Significance level
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
+#' @param k Indicates which al
 #' @export
-test_sharp_null <- function(df,
-                            d,
-                            m,
-                            y,
-                            ordering = NULL,
-                            B = 500,
-                            weight.matrix = "diag"){
+ci_TV <- function(df,
+                  d,
+                  m,
+                  y,
+                  at_group,
+                  ordering = NULL,
+                  B = 500,
+                  alpha = .05,
+                  weight.matrix = "diag"){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -32,6 +38,11 @@ test_sharp_null <- function(df,
   d_y <- length(unique(yvec))
   K <- length(unique(mvec))
 
+  # Check at_group actually exists
+  if (!(at_group %in% unique(mvec))) {
+    stop("at_group must be a support point of M!")
+  }
+  
   # Make sure the ordering is defined for all support points
   if (!is.null(ordering) & !all(as.character(unique(mvec)) %in% names(ordering))) {
     stop("Variable ordering does not include all possible values of m!")
@@ -60,7 +71,7 @@ test_sharp_null <- function(df,
     }
   }
 
-  # Get hold of the indices
+  # Get hold of the indices; drop these parameters later
   l_gt_k_inds <- which(l_gt_k_mat)
   
   # Set shape constraints using A.shp x = beta.shp
@@ -89,9 +100,9 @@ test_sharp_null <- function(df,
 
     # Matrices (with dimension d_y x K) that store P(y,m | d) for d = 0,1
     # d = 0
-    p_ym_d0 <- prop.table(table(yvec[dvec == 0], mvec[dvec == 0]))
+    p_ym_d0 <- prop.table(table(factor(yvec)[dvec == 0], factor(mvec)[dvec == 0]))
     # d = 1
-    p_ym_d1 <- prop.table(table(yvec[dvec == 1], mvec[dvec == 1]))
+    p_ym_d1 <- prop.table(table(factor(yvec)[dvec == 1], factor(mvec)[dvec == 1]))
 
     # Matrices that store P(m | d) for d = 0,1
     # d = 0
@@ -109,9 +120,9 @@ test_sharp_null <- function(df,
   boot_mat <- matrix(sample(1:nrow(df), B * nrow(df), replace = T), nrow = B)  
   # Get all beta_obs to pass to lpinfer
   beta.obs_list <- lapply(1:B,
-                          function(b) get_beta.obs(factor(yvec)[boot_mat[b,]],
+                          function(b) get_beta.obs(yvec[boot_mat[b,]],
                                                    dvec[boot_mat[b,]],
-                                                   factor(mvec)[boot_mat[b,]])
+                                                   mvec[boot_mat[b,]])
                           )
 
   # Define A.obs
@@ -142,18 +153,42 @@ test_sharp_null <- function(df,
 
   A.obs <- A.obs[,-l_gt_k_inds]
 
-  # Define target parameter
-  A.tgt <- numeric(len_x)
-  A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
-  A.tgt <- A.tgt[-l_gt_k_inds]
-  
-  # Run FSST
-  lpm <- lpinfer::lpmodel(A.obs = A.obs,
-                          A.shp = A.shp,
-                          A.tgt = A.tgt,
-                          beta.obs = beta.obs_list,
-                          beta.shp = beta.shp)
+  # Take a grid on null values
+  # Change later to a smarter search method
+  tgrid <- seq(0, 1, .02)
 
-  return(lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
-                       weight.matrix = weight.matrix))  
+  # vector to collect all p-values
+  p_vals <- numeric(length(tgrid))
+
+  # Test!
+  for (t in tgrid) {
+    # Define target parameter
+    A.tgt <- numeric(len_x)
+    A.tgt[sum(par_lengths[1:4]) + at_group] <- 1
+    A.tgt[(at_group - 1) * K + at_group] <-  -t
+    
+    A.tgt <- A.tgt[-l_gt_k_inds]
+
+    # Run FSST
+    lpm <- lpinfer::lpmodel(A.obs = A.obs,
+                            A.shp = A.shp,
+                            A.tgt = A.tgt,
+                            beta.obs = beta.obs_list,
+                            beta.shp = beta.shp)
+
+    ## print(lpinfer::fsst(df,
+    ##               lpmodel = lpm,
+    ##               beta.tgt = 0,
+    ##               R = B-1,
+    ##               weight.matrix = weight.matrix)$pval)
+    p_vals[which(t == tgrid)] <- lpinfer::fsst(df,
+                                               lpmodel = lpm,
+                                               beta.tgt = 0,
+                                               R = B-1,
+                                               weight.matrix = weight.matrix)$pval[2]
+  }
+  
+  
+
+  return(cbind(tgrid, p_vals))  
 }
