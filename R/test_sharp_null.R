@@ -45,7 +45,7 @@ test_sharp_null <- function(df,
   # Getting ready to use lpinfer
   # x = (theta, delta, zeta, kappa, eta)
   # zeta, kappa: nuisance par to convert inequalities to equalities
-  # eta: nuisance par to create target par (= theta_kk TV_kk)
+  # eta: nuisance par to create target par (eta_k = theta_kk TV_kk)
 
   par_lengths <- c("theta" = K^2, "delta" = d_y * K, "zeta" = K,
                    "kappa" = d_y * K, "eta" = K)
@@ -74,7 +74,7 @@ test_sharp_null <- function(df,
     A.shp[k, par_lengths[1] + ((k-1) * d_y + 1):(k * d_y)] <- -1
 
     # Inequalities to equalities
-    A.shp[k, sum(par_lengths[1:2]) + k] <- 1
+    A.shp[k, sum(par_lengths[1:2]) + k] <- -1
     # TV_kk "nuisance" parameters
     A.shp[k, sum(par_lengths[1:4]) + k] <- 1
   }
@@ -137,7 +137,7 @@ test_sharp_null <- function(df,
     # Inequalities to equalities
     ## A.obs[2 * K + k, sum(par_lengths[1:2]) + k] <- 1
     A.obs[cbind(2 * K + ((k-1) * d_y + 1):(k * d_y),
-                sum(par_lengths[1:3]) + ((k-1) * d_y + 1):(k * d_y))] <- 1
+                sum(par_lengths[1:3]) + ((k-1) * d_y + 1):(k * d_y))] <- -1
   }
 
   A.obs <- A.obs[,-l_gt_k_inds]

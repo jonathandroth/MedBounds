@@ -85,7 +85,7 @@ ci_TV <- function(df,
     A.shp[k, par_lengths[1] + ((k-1) * d_y + 1):(k * d_y)] <- -1
 
     # Inequalities to equalities
-    A.shp[k, sum(par_lengths[1:2]) + k] <- 1
+    A.shp[k, sum(par_lengths[1:2]) + k] <- -1
     # TV_kk "nuisance" parameters
     A.shp[k, sum(par_lengths[1:4]) + k] <- 1
   }
@@ -148,7 +148,7 @@ ci_TV <- function(df,
     # Inequalities to equalities
     ## A.obs[2 * K + k, sum(par_lengths[1:2]) + k] <- 1
     A.obs[cbind(2 * K + ((k-1) * d_y + 1):(k * d_y),
-                sum(par_lengths[1:3]) + ((k-1) * d_y + 1):(k * d_y))] <- 1
+                sum(par_lengths[1:3]) + ((k-1) * d_y + 1):(k * d_y))] <- -1
   }
 
   A.obs <- A.obs[,-l_gt_k_inds]
