@@ -13,7 +13,10 @@ compute_bootstrap_draws <- function(f, df, d, m, y, numdraws = 100){
 }
 
 
-compute_bootstrap_draws_clustered <- function(f, df, d, m, y, cluster = NULL, numdraws = 100){
+compute_bootstrap_draws_clustered <- function(f, df, d, m, y,
+                                              cluster = NULL,
+                                              numdraws = 100,
+                                              return_df = T){
   n <- NROW(df)
 
   if(is.null(cluster)){
@@ -40,9 +43,15 @@ compute_bootstrap_draws_clustered <- function(f, df, d, m, y, cluster = NULL, nu
     df_bs <- dplyr::left_join(bs_cluster_df,
                            df,
                            by = cluster)
-    return(f(df_bs, d, m, y))
+    return(f(df = df_bs, d = d,m = m, y = y))
   }
-
+  #If return_df, we return a df that binds that rows of the bootstrap draws
+  #Otherwise, we return a list
+  if(return_df){
   bootstrapDraws <- purrr::map_dfr(.x = 1:numdraws, .f = bootstrap_oneseed)
+  }else{
+  bootstrapDraws <- purrr::map(.x = 1:numdraws, .f = bootstrap_oneseed)
+
+  }
   return(bootstrapDraws)
 }

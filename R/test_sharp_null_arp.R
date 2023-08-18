@@ -13,6 +13,7 @@
 #'   are less than or equal to this point. If ordering = NULL, the standard
 #'   ordering is used.
 #' @param B Bootstrap size, default is zero
+#' @param cluster Cluster for bootstrap
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
 #' @export
@@ -22,6 +23,7 @@ test_sharp_null_arp <- function(df,
                             y,
                             ordering = NULL,
                             B = 500,
+                            cluster = NULL,
                             weight.matrix = "diag"){
 
   yvec <- df[[y]]
@@ -137,15 +139,44 @@ test_sharp_null_arp <- function(df,
                  -A.obs[1:(2*K),],
                  A.obs[(2*K+1):NROW(A.obs), ])
 
+  yvalues <- unique(yvec)
+  mvalues <- unique(mvec)
+  my_values <- purrr::cross_df(list(m=mvalues,y=yvalues)) %>%
+                dplyr::arrange(m,y) %>%
+                dplyr::select(y,m)
 
   # Constructing beta_obs
   get_beta.obs <- function(yvec, dvec, mvec) {
+    #Get frequencies for all possible values of (y,m) | D=0
+    p_ym_0_vec <- purrr::map_dbl(.x = 1:NROW(my_values),
+                                 .f = ~mean(yvec[dvec == 0] == my_values$y[.x]
+                                            & mvec[dvec == 0] == my_values$m[.x]) )
 
-    # Matrices (with dimension d_y x K) that store P(y,m | d) for d = 0,1
-    # d = 0
-    p_ym_d0 <- prop.table(table(factor(yvec)[dvec == 0], factor(mvec)[dvec == 0]))
-    # d = 1
-    p_ym_d1 <- prop.table(table(factor(yvec)[dvec == 1], factor(mvec)[dvec == 1]))
+    #Rearrange into a matrix where rows correspond to values of y and cols vals of m
+    p_ym_d0 <-
+    cbind(my_values, p_ym_0_vec) %>%
+      reshape2::dcast(y ~ m, value.var = "p_ym_0_vec") %>%
+      dplyr::select(-y) %>%
+      as.matrix()
+
+
+    #Get frequencies for all possible values of (y,m) | D=1
+    p_ym_1_vec <- purrr::map_dbl(.x = 1:NROW(my_values),
+                                 .f = ~mean(yvec[dvec == 1] == my_values$y[.x]
+                                            & mvec[dvec == 1] == my_values$m[.x]) )
+
+    #Rearrange into a matrix where rows correspond to values of y and cols vals of m
+    p_ym_d1 <-
+      cbind(my_values, p_ym_1_vec) %>%
+      reshape2::dcast(y ~ m, value.var = "p_ym_1_vec") %>%
+      dplyr::select(-y) %>%
+      as.matrix()
+
+    # # Matrices (with dimension d_y x K) that store P(y,m | d) for d = 0,1
+    # # d = 0
+    # p_ym_d0 <- prop.table(table(factor(yvec)[dvec == 0], factor(mvec)[dvec == 0]))
+    # # d = 1
+    # p_ym_d1 <- prop.table(table(factor(yvec)[dvec == 1], factor(mvec)[dvec == 1]))
 
     # Matrices that store P(m | d) for d = 0,1
     # d = 0
@@ -167,13 +198,28 @@ test_sharp_null_arp <- function(df,
 
 
   # Bootstrap sample indices
-  boot_mat <- matrix(sample(1:nrow(df), B * nrow(df), replace = T), nrow = B)
-  # Get all beta_obs to pass to lpinfer
-  beta.obs_list <- lapply(1:B,
-                          function(b) get_beta.obs(yvec[boot_mat[b,]],
-                                                   dvec[boot_mat[b,]],
-                                                   mvec[boot_mat[b,]])
-  )
+  n <- NROW(df)
+
+  beta.obs_list <- compute_bootstrap_draws_clustered(f =
+                                                       function(df,d,y,m,...){get_beta.obs(
+                                                                      df[[y]],
+                                                                      df[[d]],
+                                                                      df[[m]])},
+                                                     df = df,
+                                                     d = d,
+                                                     m = m,
+                                                     y = y,
+                                                     cluster = cluster,
+                                                     numdraws = B,
+                                                     return_df = F)
+
+  # boot_mat <- matrix(sample(1:nrow(df), B * nrow(df), replace = T), nrow = B)
+  # # Get all beta_obs to pass to lpinfer
+  # beta.obs_list <- lapply(1:B,
+  #                         function(b) get_beta.obs(yvec[boot_mat[b,]],
+  #                                                  dvec[boot_mat[b,]],
+  #                                                  mvec[boot_mat[b,]])
+  # )
 
 
   # Get variance matrix of the beta.obs boostraps
