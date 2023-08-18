@@ -84,27 +84,6 @@ test_sharp_null <- function(df,
 
   # Set remaining constraints using A.obs x = beta.obs
 
-  # Constructing beta_obs
-  get_beta.obs <- function(yvec, dvec, mvec) {
-
-    # Matrices (with dimension d_y x K) that store P(y,m | d) for d = 0,1
-    # d = 0
-    p_ym_d0 <- prop.table(table(yvec[dvec == 0], mvec[dvec == 0]))
-    # d = 1
-    p_ym_d1 <- prop.table(table(yvec[dvec == 1], mvec[dvec == 1]))
-
-    # Matrices that store P(m | d) for d = 0,1
-    # d = 0
-    p_m_d0 <- colSums(p_ym_d0)
-    # d = 1
-    p_m_d1 <- colSums(p_ym_d1)
-
-    beta.obs <- c(p_m_d0, p_m_d1, p_ym_d1 - p_ym_d0)
-    
-    return(beta.obs)
-  }
-
-
   # Bootstrap sample indices
   boot_mat <- matrix(sample(1:nrow(df), B * nrow(df), replace = T), nrow = B)  
   # Get all beta_obs to pass to lpinfer
@@ -156,4 +135,27 @@ test_sharp_null <- function(df,
 
   return(lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
                        weight.matrix = weight.matrix))  
+}
+
+#' @title Function to construct beta.obs to pass to lpinfer
+##' @param yvec Vector of outcome variable
+##' @param dvec Vector of treatment variable
+##' @param mvec Vector of mediator variable
+get_beta.obs <- function(yvec, dvec, mvec) {
+
+  # Matrices (with dimension d_y x K) that store P(y,m | d) for d = 0,1
+  # d = 0
+  p_ym_d0 <- prop.table(table(yvec[dvec == 0], mvec[dvec == 0]))
+  # d = 1
+  p_ym_d1 <- prop.table(table(yvec[dvec == 1], mvec[dvec == 1]))
+
+  # Matrices that store P(m | d) for d = 0,1
+  # d = 0
+  p_m_d0 <- colSums(p_ym_d0)
+  # d = 1
+  p_m_d1 <- colSums(p_ym_d1)
+
+  beta.obs <- c(p_m_d0, p_m_d1, p_ym_d1 - p_ym_d0)
+  
+  return(beta.obs)
 }

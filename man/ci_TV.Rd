@@ -13,7 +13,10 @@ ci_TV(
   ordering = NULL,
   B = 500,
   alpha = 0.05,
-  weight.matrix = "diag"
+  weight.matrix = "diag",
+  bisec = FALSE,
+  verbose = FALSE,
+  eps = 0.1 * alpha
 )
 }
 \arguments{
@@ -42,7 +45,13 @@ ordering is used.}
 \item{weight.matrix}{Weight matrix used to implement FSST. Possible options
 are "diag", "avar", "identity." Defaults is "diag" as in FSST.}
 
-\item{k}{Indicates which al}
+\item{bisec}{If bisec=TRUE, a bisection method is used rather than a grid
+search}
+
+\item{verbose}{Prints test results for each null value if verbose = TRUE}
+
+\item{eps}{Tolerance level for the bisection method (in terms of the
+p-value), default is 10% of the significance level alpha}
 }
 \description{
 This function calculates a confidence interval for the total

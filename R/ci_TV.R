@@ -18,7 +18,11 @@
 #' @param alpha Significance level
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
-#' @param k Indicates which al
+#' @param bisec If bisec=TRUE, a bisection method is used rather than a grid
+#'   search
+#' @param verbose Prints test results for each null value if verbose = TRUE
+#' @param eps Tolerance level for the bisection method (in terms of the
+#'   p-value), default is 10% of the significance level alpha
 #' @export
 ci_TV <- function(df,
                   d,
@@ -28,7 +32,10 @@ ci_TV <- function(df,
                   ordering = NULL,
                   B = 500,
                   alpha = .05,
-                  weight.matrix = "diag"){
+                  weight.matrix = "diag",
+                  bisec = FALSE,
+                  verbose = FALSE,
+                  eps = .1 * alpha){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -94,35 +101,13 @@ ci_TV <- function(df,
 
 
   # Set remaining constraints using A.obs x = beta.obs
-
-  # Constructing beta_obs
-  get_beta.obs <- function(yvec, dvec, mvec) {
-
-    # Matrices (with dimension d_y x K) that store P(y,m | d) for d = 0,1
-    # d = 0
-    p_ym_d0 <- prop.table(table(factor(yvec)[dvec == 0], factor(mvec)[dvec == 0]))
-    # d = 1
-    p_ym_d1 <- prop.table(table(factor(yvec)[dvec == 1], factor(mvec)[dvec == 1]))
-
-    # Matrices that store P(m | d) for d = 0,1
-    # d = 0
-    p_m_d0 <- colSums(p_ym_d0)
-    # d = 1
-    p_m_d1 <- colSums(p_ym_d1)
-
-    beta.obs <- c(p_m_d0, p_m_d1, p_ym_d1 - p_ym_d0)
-    
-    return(beta.obs)
-  }
-
-
   # Bootstrap sample indices
   boot_mat <- matrix(sample(1:nrow(df), B * nrow(df), replace = T), nrow = B)  
   # Get all beta_obs to pass to lpinfer
   beta.obs_list <- lapply(1:B,
-                          function(b) get_beta.obs(yvec[boot_mat[b,]],
+                          function(b) get_beta.obs(factor(yvec)[boot_mat[b,]],
                                                    dvec[boot_mat[b,]],
-                                                   mvec[boot_mat[b,]])
+                                                   factor(mvec)[boot_mat[b,]])
                           )
 
   # Define A.obs
@@ -153,15 +138,8 @@ ci_TV <- function(df,
 
   A.obs <- A.obs[,-l_gt_k_inds]
 
-  # Take a grid on null values
-  # Change later to a smarter search method
-  tgrid <- seq(0, 1, .02)
-
-  # vector to collect all p-values
-  p_vals <- numeric(length(tgrid))
-
-  # Test!
-  for (t in tgrid) {
+  # Function to test H_0: TV_kk = t
+  test_TV <- function(t) {
     # Define target parameter
     A.tgt <- numeric(len_x)
     A.tgt[sum(par_lengths[1:4]) + at_group] <- 1
@@ -176,19 +154,81 @@ ci_TV <- function(df,
                             beta.obs = beta.obs_list,
                             beta.shp = beta.shp)
 
-    ## print(lpinfer::fsst(df,
-    ##               lpmodel = lpm,
-    ##               beta.tgt = 0,
-    ##               R = B-1,
-    ##               weight.matrix = weight.matrix)$pval)
-    p_vals[which(t == tgrid)] <- lpinfer::fsst(df,
-                                               lpmodel = lpm,
-                                               beta.tgt = 0,
-                                               R = B-1,
-                                               weight.matrix = weight.matrix)$pval[2]
+    result <- lpinfer::fsst(df,
+                            lpmodel = lpm,
+                            beta.tgt = 0,
+                            R = B-1,
+                            weight.matrix = weight.matrix)
+
+    return(result)
   }
   
-  
+  if (!bisec) {
+    # Take a grid on null values
+    # Change later to a smarter search method
+    tgrid <- seq(0, 1, .02)
 
+    # vector to collect all p-values
+    p_vals <- numeric(length(tgrid))
+
+    # Test!
+    for (t in tgrid) {
+      print(paste0("Working on null value = ", t))
+      j
+      result <- test_TV(t)
+      
+      if (verbose) {
+        print(c(t, result$pval[2]))
+      }    
+      
+      p_vals[which(t == tgrid)] <- result$pval[2]
+    }
+  } else {
+
+
+    if ((t0_pval <- test_TV(0)$pval[2]) > alpha) {
+      
+      return(cbind(0, t0_pval))
+      
+    } else {
+      
+      tgrid <- NULL
+      t <- .5
+      p_vals <- NULL
+      pval <- 0
+
+      # Endpoints for bisection method
+      a <- 0
+      b <- 1
+      
+      while(abs(pval - .05) > eps) {
+
+        print(paste0("Working on null value = ", t))
+        
+        tgrid <- c(tgrid, t)
+        result <- test_TV(t)
+
+        p_val <- result$pval[2]
+        p_vals <- c(p_vals, pval)
+
+        if (verbose) {
+          print(c(t, p_val))
+        }
+        # Update null value
+        if (p_val > .05) {
+
+          b <- t
+          t <- (t + a) / 2
+          
+        } else {
+          
+          a <- t
+          t <- (t + b) / 2
+          
+        }
+      }   
+    }
+  }
+  
   return(cbind(tgrid, p_vals))  
 }
