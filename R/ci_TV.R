@@ -1,28 +1,41 @@
-#' @title Hypothesis test for the sharp null
-#' @description This function tests the sharp null of Y(1,m) = Y(0,m). The
-#'   outcome and mediator are both assumed to take finitely many different
-#'   values. The inference is via applying Fang et al. (2023; FSST)
+#' @title Construct confidence interval for total variation
+#' @description This function calculates a confidence interval for the total
+#'   variation for a given always taker group. The inference is via inverting
+#'   the test of Fang et al. (2023; FSST)
 #' @param df A data frame
 #' @param d Name of the treatment variable in the df
 #' @param m Name of the mediator variable
 #' @param y Name of the outcome variable, which is assumed to take a discrete
 #'   support
+#' @param at_group Indicates for which always-taker group the confidence
+#'   interval is calculated for. It can take any value in the support of M.
 #' @param ordering A list with length equal to the cardinality of the support of
 #'   the mediator variable. The name of each element corresponds to a point in
 #'   the support, and each element is a vector that collects all m values that
 #'   are less than or equal to this point. If ordering = NULL, the standard
 #'   ordering is used.
 #' @param B Bootstrap size, default is zero
+#' @param alpha Significance level
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
+#' @param bisec If bisec=TRUE, a bisection method is used rather than a grid
+#'   search
+#' @param verbose Prints test results for each null value if verbose = TRUE
+#' @param eps Tolerance level for the bisection method (in terms of the
+#'   p-value), default is 10% of the significance level alpha
 #' @export
-test_sharp_null <- function(df,
-                            d,
-                            m,
-                            y,
-                            ordering = NULL,
-                            B = 500,
-                            weight.matrix = "diag"){
+ci_TV <- function(df,
+                  d,
+                  m,
+                  y,
+                  at_group,
+                  ordering = NULL,
+                  B = 500,
+                  alpha = .05,
+                  weight.matrix = "diag",
+                  bisec = FALSE,
+                  verbose = FALSE,
+                  eps = .1 * alpha){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -32,6 +45,11 @@ test_sharp_null <- function(df,
   d_y <- length(unique(yvec))
   K <- length(unique(mvec))
 
+  # Check at_group actually exists
+  if (!(at_group %in% unique(mvec))) {
+    stop("at_group must be a support point of M!")
+  }
+  
   # Make sure the ordering is defined for all support points
   if (!is.null(ordering) & !all(as.character(unique(mvec)) %in% names(ordering))) {
     stop("Variable ordering does not include all possible values of m!")
@@ -45,7 +63,7 @@ test_sharp_null <- function(df,
   # Getting ready to use lpinfer
   # x = (theta, delta, zeta, kappa, eta)
   # zeta, kappa: nuisance par to convert inequalities to equalities
-  # eta: nuisance par to create target par (eta_k = theta_kk TV_kk)
+  # eta: nuisance par to create target par (= theta_kk TV_kk)
 
   par_lengths <- c("theta" = K^2, "delta" = d_y * K, "zeta" = K,
                    "kappa" = d_y * K, "eta" = K)
@@ -60,7 +78,7 @@ test_sharp_null <- function(df,
     }
   }
 
-  # Get hold of the indices
+  # Get hold of the indices; drop these parameters later
   l_gt_k_inds <- which(l_gt_k_mat)
   
   # Set shape constraints using A.shp x = beta.shp
@@ -83,7 +101,6 @@ test_sharp_null <- function(df,
 
 
   # Set remaining constraints using A.obs x = beta.obs
-
   # Bootstrap sample indices
   boot_mat <- matrix(sample(1:nrow(df), B * nrow(df), replace = T), nrow = B)  
   # Get all beta_obs to pass to lpinfer
@@ -121,41 +138,97 @@ test_sharp_null <- function(df,
 
   A.obs <- A.obs[,-l_gt_k_inds]
 
-  # Define target parameter
-  A.tgt <- numeric(len_x)
-  A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
-  A.tgt <- A.tgt[-l_gt_k_inds]
+  # Function to test H_0: TV_kk = t
+  test_TV <- function(t) {
+    # Define target parameter
+    A.tgt <- numeric(len_x)
+    A.tgt[sum(par_lengths[1:4]) + at_group] <- 1
+    A.tgt[(at_group - 1) * K + at_group] <-  -t
+    
+    A.tgt <- A.tgt[-l_gt_k_inds]
+
+    # Run FSST
+    lpm <- lpinfer::lpmodel(A.obs = A.obs,
+                            A.shp = A.shp,
+                            A.tgt = A.tgt,
+                            beta.obs = beta.obs_list,
+                            beta.shp = beta.shp)
+
+    result <- lpinfer::fsst(df,
+                            lpmodel = lpm,
+                            beta.tgt = 0,
+                            R = B-1,
+                            weight.matrix = weight.matrix)
+
+    return(result)
+  }
   
-  # Run FSST
-  lpm <- lpinfer::lpmodel(A.obs = A.obs,
-                          A.shp = A.shp,
-                          A.tgt = A.tgt,
-                          beta.obs = beta.obs_list,
-                          beta.shp = beta.shp)
+  if (!bisec) {
+    # Take a grid on null values
+    # Change later to a smarter search method
+    tgrid <- seq(0, 1, .02)
 
-  return(lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
-                       weight.matrix = weight.matrix))  
-}
+    # vector to collect all p-values
+    p_vals <- numeric(length(tgrid))
 
-#' @title Function to construct beta.obs to pass to lpinfer
-##' @param yvec Vector of outcome variable
-##' @param dvec Vector of treatment variable
-##' @param mvec Vector of mediator variable
-get_beta.obs <- function(yvec, dvec, mvec) {
+    # Test!
+    for (t in tgrid) {
+      print(paste0("Working on null value = ", t))
+      j
+      result <- test_TV(t)
+      
+      if (verbose) {
+        print(c(t, result$pval[2]))
+      }    
+      
+      p_vals[which(t == tgrid)] <- result$pval[2]
+    }
+  } else {
 
-  # Matrices (with dimension d_y x K) that store P(y,m | d) for d = 0,1
-  # d = 0
-  p_ym_d0 <- prop.table(table(yvec[dvec == 0], mvec[dvec == 0]))
-  # d = 1
-  p_ym_d1 <- prop.table(table(yvec[dvec == 1], mvec[dvec == 1]))
 
-  # Matrices that store P(m | d) for d = 0,1
-  # d = 0
-  p_m_d0 <- colSums(p_ym_d0)
-  # d = 1
-  p_m_d1 <- colSums(p_ym_d1)
+    if ((t0_pval <- test_TV(0)$pval[2]) > alpha) {
+      
+      return(cbind(0, t0_pval))
+      
+    } else {
+      
+      tgrid <- NULL
+      t <- .5
+      p_vals <- NULL
+      pval <- 0
 
-  beta.obs <- c(p_m_d0, p_m_d1, p_ym_d1 - p_ym_d0)
+      # Endpoints for bisection method
+      a <- 0
+      b <- 1
+      
+      while(abs(pval - .05) > eps) {
+
+        print(paste0("Working on null value = ", t))
+        
+        tgrid <- c(tgrid, t)
+        result <- test_TV(t)
+
+        p_val <- result$pval[2]
+        p_vals <- c(p_vals, pval)
+
+        if (verbose) {
+          print(c(t, p_val))
+        }
+        # Update null value
+        if (p_val > .05) {
+
+          b <- t
+          t <- (t + a) / 2
+          
+        } else {
+          
+          a <- t
+          t <- (t + b) / 2
+          
+        }
+      }   
+    }
+  }
   
-  return(beta.obs)
+  return(cbind(tgrid, p_vals))  
 }

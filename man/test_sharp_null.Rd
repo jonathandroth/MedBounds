@@ -25,7 +25,7 @@ ordering is used.}
 \item{B}{Bootstrap size, default is zero}
 
 \item{weight.matrix}{Weight matrix used to implement FSST. Possible options
-are "diag", "avar", "identity"}
+are "diag", "avar", "identity." Defaults is "diag" as in FSST.}
 }
 \description{
 This function tests the sharp null of Y(1,m) = Y(0,m). The
