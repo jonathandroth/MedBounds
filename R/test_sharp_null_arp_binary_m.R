@@ -25,7 +25,10 @@ test_sharp_null_arp_binary_m <- function(df,
                                 B = 500,
                                 cluster = NULL,
                                 weight.matrix = "diag",
-                                ats_only = F){
+                                ats_only = F,
+                                alpha = 0.05,
+                                kappa = alpha/10,
+                                use_hybrid = T){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -89,13 +92,30 @@ test_sharp_null_arp_binary_m <- function(df,
   beta.obs <- get_beta.obs(yvec, dvec, mvec)
 
   # Run ARP test
+  if(use_hybrid){
+  lf_cv <- HonestDiD:::.compute_least_favorable_cv(X_T = matrix(0,nrow = length(beta.obs)),
+                                                   sigma = sigma.obs,
+                                                   hybrid_kappa = kappa
+                                                   )
+
+  hybrid_list <- list(hybrid_kappa = kappa, lf_cv = lf_cv)
+
   arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
                                              y_T = -beta.obs,
                                              X_T = matrix(0,nrow = length(beta.obs)),
                                              sigma = sigma.obs,
-                                             alpha = 0.05,
-                                             hybrid_flag = "ARP"
+                                             alpha = alpha,
+                                             hybrid_flag = "LF",
+                                             hybrid_list = hybrid_list
   )
+  }else{
+    arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
+                                               y_T = -beta.obs,
+                                               X_T = matrix(0,nrow = length(beta.obs)),
+                                               sigma = sigma.obs,
+                                               alpha = alpha,
+                                               hybrid_flag = "ARP")
 
+  }
   return(arp)
 }

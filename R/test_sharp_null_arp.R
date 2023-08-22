@@ -237,6 +237,11 @@ test_sharp_null_arp <- function(df,
                                          ncol = NROW(A.shp) ) ),
                  matrix(0, nrow = NROW(A.shp), ncol = NCOL(sigma.obs) + NROW(A.shp) ))
 
+  #Test if sigma is numerically not psd. If so, add small amount of noise
+  min_eig <- base::min(base::eigen(sigma, only.values = TRUE)$values)
+  if(min_eig < 0){sigma <- sigma + diag(10*abs(min_eig),
+                                        ncol = NROW(sigma),
+                                        nrow = NROW(sigma))}
 
 
   # Run ARP test
