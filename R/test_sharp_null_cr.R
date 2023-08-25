@@ -119,9 +119,9 @@ test_sharp_null_cr <- function(df,
   A.tgt <- A.tgt[-l_gt_k_inds]
 
   # Update number of parameters
-  len_x <- len(A.tgt)
+  len_x <- length(A.tgt)
 
-  # Defining model for gurobi
+  # Defining model for gurobi::gurobi
   model <- list()
 
   A <- rbind(A.shp, A.obs)
@@ -142,11 +142,11 @@ test_sharp_null_cr <- function(df,
     
   # Optimize for "l"
   model$modelsense <- 'min'
-  min.result <- gurobi(model, params)
+  min.result <- gurobi::gurobi(model, params)
 
   # Optimize for "u"
   model$modelsense <- 'max'
-  max.result <- gurobi(model, params)
+  max.result <- gurobi::gurobi(model, params)
 
   # Draw perturbation
   xi_obj <- runif(len_x) * eps_bar
@@ -168,14 +168,14 @@ test_sharp_null_cr <- function(df,
 
   # Optimize LB-
   model$modelsense <- 'min'
-  min.result.m <- gurobi(model, params)
+  min.result.m <- gurobi::gurobi(model, params)
 
   # Record lower bound
   lbminus <- min.result.m$objval
 
   # Optimize UB-
   model$modelsense <- 'max'
-  max.result.m <- gurobi(model, params)
+  max.result.m <- gurobi::gurobi(model, params)
 
   # Record lower bound
   ubminus <- max.result.m$objval
@@ -186,20 +186,20 @@ test_sharp_null_cr <- function(df,
 
   # Optimize
   model$modelsense <- 'min'
-  min.result.p <- gurobi(model, params)
+  min.result.p <- gurobi::gurobi(model, params)
 
   # Record lower bound
   lbplus <- min.result.p$objval
 
   # Optimize UB-
   model$modelsense <- 'max'
-  max.result.p <- gurobi(model, params)
+  max.result.p <- gurobi::gurobi(model, params)
 
   # Rrecord upper bound
   ubplus<- max.result.p$objval
 
   ############################################################################
-  # Bbegin bootstrap procedure
+  # Begin bootstrap procedure
   boot_lbminus <- rep(NA, bootmax)
   boot_lbplus <- rep(NA, bootmax)
   boot_ubminus <- rep(NA, bootmax)
@@ -228,14 +228,14 @@ test_sharp_null_cr <- function(df,
     
     # Optimize LB-
     model$modelsense <- 'min'
-    bmin.result.m <- gurobi(model, params)
+    bmin.result.m <- gurobi::gurobi(model, params)
 
     # Record lower bound
     boot_lbminus[b] <- bmin.result.m$objval
 
     # Optimize UB-
     model$modelsense <- 'max'
-    bmax.result.m <- gurobi(model, params)
+    bmax.result.m <- gurobi::gurobi(model, params)
 
     # Record upper bound
     boot_ubminus[b] <- bmax.result.m$objval
@@ -246,14 +246,14 @@ test_sharp_null_cr <- function(df,
 
     # Optimize LB+
     model$modelsense <- 'min'
-    bmin.result.p <- gurobi(model, params)
+    bmin.result.p <- gurobi::gurobi(model, params)
 
     # Record lower bound
     boot_lbplus[b] <- bmin.result.p$objval
 
     # Optimize UB+
     model$modelsense <- 'max'
-    bmax.result.p <- gurobi(model, params)
+    bmax.result.p <- gurobi::gurobi(model, params)
     
     # Record upper bound
     boot_ubplus[b] <- bmax.result.p$objval
