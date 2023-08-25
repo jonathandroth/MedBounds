@@ -1,7 +1,7 @@
 #' @title Hypothesis test for the sharp null
 #' @description This function tests the sharp null of Y(1,m) = Y(0,m). The
 #'   outcome and mediator are both assumed to take finitely many different
-#'   values. The inference is via applying Andrews, Roth, and Pakes
+#'   values. The inference is via applying Cox and Shi (2023)
 #' @param df A data frame
 #' @param d Name of the treatment variable in the df
 #' @param m Name of the mediator variable
@@ -17,18 +17,18 @@
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
 #' @export
-test_sharp_null_arp_binary_m <- function(df,
-                                d,
-                                m,
-                                y,
-                                ordering = NULL,
-                                B = 500,
-                                cluster = NULL,
-                                weight.matrix = "diag",
-                                ats_only = F,
-                                alpha = 0.05,
-                                kappa = alpha/10,
-                                use_hybrid = T){
+test_sharp_null_coxandshi_binary_m <- function(df,
+                                         d,
+                                         m,
+                                         y,
+                                         ordering = NULL,
+                                         B = 500,
+                                         cluster = NULL,
+                                         weight.matrix = "diag",
+                                         ats_only = F,
+                                         alpha = 0.05,
+                                         kappa = alpha/10,
+                                         use_hybrid = T){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -48,15 +48,15 @@ test_sharp_null_arp_binary_m <- function(df,
                                         & mvec[dvec == 0] == 1 ))
 
     if(!ats_only){
-    #Get partial density for Y,M=0|D=1
-    p_y0_1 <- purrr::map_dbl(.x = 1:length(yvalues),
-                             .f = ~mean(yvec[dvec == 1] == yvalues[.x]
-                                        & mvec[dvec == 1] == 0 ))
+      #Get partial density for Y,M=0|D=1
+      p_y0_1 <- purrr::map_dbl(.x = 1:length(yvalues),
+                               .f = ~mean(yvec[dvec == 1] == yvalues[.x]
+                                          & mvec[dvec == 1] == 0 ))
 
-    #Get partial density for Y,M=0|D=0
-    p_y0_0 <- purrr::map_dbl(.x = 1:length(yvalues),
-                             .f = ~mean(yvec[dvec == 0] == yvalues[.x]
-                                        & mvec[dvec == 0] == 0 ))
+      #Get partial density for Y,M=0|D=0
+      p_y0_0 <- purrr::map_dbl(.x = 1:length(yvalues),
+                               .f = ~mean(yvec[dvec == 0] == yvalues[.x]
+                                          & mvec[dvec == 0] == 0 ))
 
     }
     #We return differences in partial densities that should be positive
@@ -91,31 +91,8 @@ test_sharp_null_arp_binary_m <- function(df,
   #Get the beta.obs using actual data
   beta.obs <- get_beta.obs(yvec, dvec, mvec)
 
-  # Run ARP test
-  if(use_hybrid){
-  lf_cv <- HonestDiD:::.compute_least_favorable_cv(X_T = matrix(0,nrow = length(beta.obs)),
-                                                   sigma = sigma.obs,
-                                                   hybrid_kappa = kappa
-                                                   )
-
-  hybrid_list <- list(hybrid_kappa = kappa, lf_cv = lf_cv)
-
-  arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
-                                             y_T = -beta.obs,
-                                             X_T = matrix(0,nrow = length(beta.obs)),
-                                             sigma = sigma.obs,
-                                             alpha = alpha,
-                                             hybrid_flag = "LF",
-                                             hybrid_list = hybrid_list
-  )
-  }else{
-    arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
-                                               y_T = -beta.obs,
-                                               X_T = matrix(0,nrow = length(beta.obs)),
-                                               sigma = sigma.obs,
-                                               alpha = alpha,
-                                               hybrid_flag = "ARP")
-
-  }
-  return(arp)
+  #Run Cox and Shi test
+  coxandshi <- cox_shi_nonuisance(Y = -beta.obs,
+                                  sigma = sigma.obs)
+  return(coxandshi)
 }
