@@ -16,13 +16,13 @@
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
 #' @export
-test_sharp_null <- function(df,
-                            d,
-                            m,
-                            y,
-                            ordering = NULL,
-                            B = 500,
-                            weight.matrix = "diag"){
+test_sharp_null_fsst <- function(df,
+                                 d,
+                                 m,
+                                 y,
+                                 ordering = NULL,
+                                 B = 500,
+                                 weight.matrix = "diag"){
 
   yvec <- df[[y]]
   dvec <- df[[d]]

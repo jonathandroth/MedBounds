@@ -45,5 +45,5 @@ are "diag", "avar", "identity." Defaults is "diag" as in FSST.}
 \description{
 This function tests the sharp null of Y(1,m) = Y(0,m). The
   outcome and mediator are both assumed to take finitely many different
-  values. The inference is via applying Fang et al. (2023; FSST)
+  values. The inference is via applying Andrews, Roth, and Pakes
 }
