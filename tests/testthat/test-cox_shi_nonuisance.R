@@ -37,5 +37,11 @@ test_that("Cox and Shi no nuisance function gives reasonable output", {
   expect_equal(as.numeric(cs$cv), qchisq(p=0.95, df = 1))
   expect_true(as.logical(cs$reject))
 
+  #One moment binding, large, change alpha
+  cs <- cox_shi_nonuisance(Y = c(2,-1), sigma = diag(2), alpha = 0.1)
+  expect_equal(as.numeric(cs$test_stat), 2^2)
+  expect_equal(as.numeric(cs$cv), qchisq(p=0.90, df = 1))
+  expect_true(as.logical(cs$reject))
+
 
 })
