@@ -1,7 +1,7 @@
-#' @title Hypothesis test for the sharp null
+#' @title Hypothesis test for the sharp null via Fang et al. (2023; FSST)
 #' @description This function tests the sharp null of Y(1,m) = Y(0,m). The
 #'   outcome and mediator are both assumed to take finitely many different
-#'   values. The inference is via applying Fang et al. (2023; FSST)
+#'   values. The inference is via applying FSST
 #' @param df A data frame
 #' @param d Name of the treatment variable in the df
 #' @param m Name of the mediator variable
@@ -151,7 +151,7 @@ test_sharp_null_fsst <- function(df,
 #'   the support, and each element is a vector that collects all m values that
 #'   are less than or equal to this point. If ordering = NULL, the standard
 #'   ordering is used.
-#' @param B Bootstrap size, default is zero
+#' @param B Bootstrap size, default is 500
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
 #' @export

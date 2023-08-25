@@ -43,12 +43,11 @@ test_sharp_null_cr <- function(df,
   }
 
   # Getting ready to use lpinfer
-  # x = (theta, delta, zeta, kappa, eta)
+  # x = (theta, delta, eta)
   # zeta, kappa: nuisance par to convert inequalities to equalities
   # eta: nuisance par to create target par (eta_k = theta_kk TV_kk)
 
-  par_lengths <- c("theta" = K^2, "delta" = d_y * K, "zeta" = K,
-                   "kappa" = d_y * K, "eta" = K)
+  par_lengths <- c("theta" = K^2, "delta" = d_y * K, "eta" = K)
   len_x <- sum(par_lengths)
 
   # Set theta_lk = 0 for l > k using
@@ -72,11 +71,6 @@ test_sharp_null_cr <- function(df,
     A.shp[k, ((k-1) * K + 1):(k * K)] <- 1
     A.shp[k, (k-1) * K + k] <- 0
     A.shp[k, par_lengths[1] + ((k-1) * d_y + 1):(k * d_y)] <- -1
-
-    # Inequalities to equalities
-    A.shp[k, sum(par_lengths[1:2]) + k] <- -1
-    # TV_kk "nuisance" parameters
-    A.shp[k, sum(par_lengths[1:4]) + k] <- 1
   }
   A.shp <- A.shp[, -l_gt_k_inds]
   beta.shp <- rep(0, K)
