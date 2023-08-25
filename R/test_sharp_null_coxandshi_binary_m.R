@@ -93,6 +93,7 @@ test_sharp_null_coxandshi_binary_m <- function(df,
 
   #Run Cox and Shi test
   coxandshi <- cox_shi_nonuisance(Y = -beta.obs,
-                                  sigma = sigma.obs)
+                                  sigma = sigma.obs,
+                                  alpha = alpha)
   return(coxandshi)
 }
