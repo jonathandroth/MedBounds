@@ -11,7 +11,8 @@ test_sharp_null_fsst(
   y,
   ordering = NULL,
   B = 500,
-  weight.matrix = "diag"
+  weight.matrix = "diag",
+  alpha = 0.05
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ ordering is used.}
 
 \item{weight.matrix}{Weight matrix used to implement FSST. Possible options
 are "diag", "avar", "identity." Defaults is "diag" as in FSST.}
+
+\item{alpha}{Significance level. Default value is .05.}
 }
 \description{
 This function tests the sharp null of Y(1,m) = Y(0,m). The

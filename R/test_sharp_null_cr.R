@@ -17,14 +17,8 @@
 #'   objective/constraints
 #' @param alpha Significance level. Default value is .05
 #' @export
-test_sharp_null_cr <- function(df,
-                               d,
-                               m,
-                               y,
-                               ordering = NULL,
-                               B = 500,
-                               eps_bar = 1e-03,
-                               alpha = .05){
+test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
+                               eps_bar = 1e-03, alpha = .05){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -76,6 +70,9 @@ test_sharp_null_cr <- function(df,
     A.shp[k, ((k-1) * K + 1):(k * K)] <- 1
     A.shp[k, (k-1) * K + k] <- 0
     A.shp[k, par_lengths[1] + ((k-1) * d_y + 1):(k * d_y)] <- -1
+
+    # TV_kk "nuisance" parameters
+    A.shp[k, sum(par_lengths[1:2]) + k] <- 1
   }
   A.shp <- A.shp[, -l_gt_k_inds]
   beta.shp <- rep(0, K)
@@ -101,6 +98,7 @@ test_sharp_null_cr <- function(df,
     # sup Delta(A) bound
     A.obs[2 * K + ((k-1) * d_y + 1):(k * d_y),
           par_lengths[1] + ((k-1) * d_y + 1):(k * d_y)] <- diag(d_y)
+
   }
 
   A.obs <- A.obs[,-l_gt_k_inds]
@@ -115,7 +113,7 @@ test_sharp_null_cr <- function(df,
   
   # Define target parameter
   A.tgt <- numeric(len_x)
-  A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
+  A.tgt[sum(par_lengths[1:2]) + (1:K)] <- 1
   A.tgt <- A.tgt[-l_gt_k_inds]
 
   # Update number of parameters
@@ -200,10 +198,10 @@ test_sharp_null_cr <- function(df,
 
   ############################################################################
   # Begin bootstrap procedure
-  boot_lbminus <- rep(NA, bootmax)
-  boot_lbplus <- rep(NA, bootmax)
-  boot_ubminus <- rep(NA, bootmax)
-  boot_ubplus <- rep(NA, bootmax)
+  boot_lbminus <- rep(NA, B)
+  boot_lbplus <- rep(NA, B)
+  boot_ubminus <- rep(NA, B)
+  boot_ubplus <- rep(NA, B)
 
   for (b in 1:B) {
 
@@ -283,5 +281,5 @@ test_sharp_null_cr <- function(df,
   CSlb <- min(lbminus, lbplus) - (1/sqrt(n)) * max(psi_k_lb_minus, psi_k_lb_plus)
   CSub <- max(ubminus, ubplus) + (1/sqrt(n)) * max(psi_k_ub_minus, psi_k_ub_plus)
   
-  return(c(CSlb, CSub))  
+  return(list(CI = c(CSlb, CSub), reject = (0 < CSlb)))  
 }

@@ -15,14 +15,10 @@
 #' @param B Bootstrap size, default is zero
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
+#' @param alpha Significance level. Default value is .05.
 #' @export
-test_sharp_null_fsst <- function(df,
-                                 d,
-                                 m,
-                                 y,
-                                 ordering = NULL,
-                                 B = 500,
-                                 weight.matrix = "diag"){
+test_sharp_null_fsst <- function(df, d, m, y, ordering = NULL, B = 500,
+                                 weight.matrix = "diag", alpha = .05){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -133,8 +129,10 @@ test_sharp_null_fsst <- function(df,
                           beta.obs = beta.obs_list,
                           beta.shp = beta.shp)
 
-  return(lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
-                       weight.matrix = weight.matrix))  
+  fsst_result <- lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
+                               weight.matrix = weight.matrix)
+  
+  return(list(result = fsst_result, reject = (fsst_result$pval < alpha)))  
 }
 
 #' @title Hypothesis test for the sharp null with alternative LP formulation
@@ -154,6 +152,7 @@ test_sharp_null_fsst <- function(df,
 #' @param B Bootstrap size, default is 500
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
+#' @param alpha Significance level. Default value is .05.
 #' @export
 test_sharp_null_alt <- function(df,
                                 d,
@@ -161,7 +160,8 @@ test_sharp_null_alt <- function(df,
                                 y,
                                 ordering = NULL,
                                 B = 500,
-                                weight.matrix = "diag"){
+                                weight.matrix = "diag",
+                                alpha = .05){
 
   yvec <- df[[y]]
   dvec <- df[[d]]
@@ -273,8 +273,10 @@ test_sharp_null_alt <- function(df,
                           beta.obs = beta.obs_list,
                           beta.shp = beta.shp)
 
-  return(lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
-                       weight.matrix = weight.matrix))  
+  fsst_result <- lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
+                               weight.matrix = weight.matrix)
+  
+  return(list(result = fsst_result, reject = (fsst_result$pval < alpha)))  
 }
 
 
