@@ -31,8 +31,7 @@ test_sharp_null_arp <- function(df,
   df <- remove_missing_from_df(df = df,
                                d = d,
                                m = m,
-                               y = y,
-                               w = w)
+                               y = y)
 
 
   yvec <- df[[y]]
