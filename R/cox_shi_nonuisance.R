@@ -65,14 +65,20 @@ cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05){
   if(chisquared_df == 0){
     return(list(reject = 0,
                 test_stat = test_stat,
-                cv = 0))
+                cv = 0,
+                pval = 1))
   }else{
     cv <- qchisq(p = 1-alpha,
                  df = length(binding_index))
 
+    pval <- pchisq(q = test_stat,
+                   lower.tail = FALSE,
+                   df = length(binding_index))
+
     return(list(reject = test_stat > cv,
                 test_stat = test_stat,
-                cv = cv))
+                cv = cv,
+                pval = pval))
 
   }
 
