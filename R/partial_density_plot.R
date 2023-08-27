@@ -73,6 +73,7 @@ partial_density_plot <- function(df,
 
   if(!is.null(num_Ybins)){
     yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
+df[[y]] <- yvec
   }
 
   partial_densities_and_shares <- compute_partial_densities_and_shares(df = df,

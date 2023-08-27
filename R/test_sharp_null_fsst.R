@@ -32,6 +32,7 @@ test_sharp_null_fsst <- function(df, d, m, y, ordering = NULL, B = 500,
 
   if(!is.null(num_Ybins)){
     yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
+df[[y]] <- yvec
   }
 
 

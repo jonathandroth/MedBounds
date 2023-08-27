@@ -31,6 +31,7 @@ test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
 
   if(!is.null(num_Ybins)){
     yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
+df[[y]] <- yvec
   }
   
   dvec <- df[[d]]

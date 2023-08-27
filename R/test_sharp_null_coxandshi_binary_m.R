@@ -43,6 +43,7 @@ test_sharp_null_coxandshi_binary_m <- function(df,
 
   if(!is.null(num_Ybins)){
     yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
+df[[y]] <- yvec
   }
 
   dvec <- df[[d]]
