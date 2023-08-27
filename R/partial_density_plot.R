@@ -29,6 +29,13 @@ partial_density_plot <- function(df,
                                  density_0_label = "f(Y,M=1|D=0)",
                                  continuous_Y = TRUE){
 
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y,
+                               w = w)
+
+
   #If plot_nts = TRUE, re-run with m -> 1-m, d -> 1-d and flip the labels
   if(plot_nts == TRUE){
     df[[m]] <- 1- df[[m]]

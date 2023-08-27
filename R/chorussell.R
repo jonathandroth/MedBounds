@@ -24,6 +24,13 @@ test_sharp_null_cr <- function(df,
                                B = 500,
                                eps_bar = 1e-03){
 
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y,
+                               w = w)
+
+
   yvec <- df[[y]]
   dvec <- df[[d]]
   mvec <- df[[m]]
@@ -36,10 +43,10 @@ test_sharp_null_cr <- function(df,
   if (!is.null(ordering) & !all(as.character(unique(mvec)) %in% names(ordering))) {
     stop("Variable ordering does not include all possible values of m!")
   }
-  
+
   # Define "less than or equal to" function for the given partial ordering
   po_leq <- function(l, k) {
-    ifelse(is.null(ordering), l <= k, l %in% ordering[[as.character(k)]])    
+    ifelse(is.null(ordering), l <= k, l %in% ordering[[as.character(k)]])
   }
 
   # Getting ready to use lpinfer
@@ -61,7 +68,7 @@ test_sharp_null_cr <- function(df,
 
   # Get hold of the indices
   l_gt_k_inds <- which(l_gt_k_mat)
-  
+
   # Set shape constraints using A.shp x = beta.shp
   A.shp <- matrix(0, nrow = K, ncol = len_x)
 
@@ -79,7 +86,7 @@ test_sharp_null_cr <- function(df,
   # Set remaining constraints using A.obs x = beta.obs
 
   # Bootstrap sample indices
-  boot_mat <- matrix(sample(1:nrow(df), B * nrow(df), replace = T), nrow = B)  
+  boot_mat <- matrix(sample(1:nrow(df), B * nrow(df), replace = T), nrow = B)
   # Get all beta_obs to pass to lpinfer
   beta.obs_list <- lapply(1:B,
                           function(b) get_beta.obs(factor(yvec)[boot_mat[b,]],
@@ -91,18 +98,18 @@ test_sharp_null_cr <- function(df,
   A.obs <- matrix(0,
                   nrow = K + K + (d_y * K),
                   ncol = len_x)
-  
-  for (k in 1:K) { 
+
+  for (k in 1:K) {
     # Match P(M = k | D = 0)
     A.obs[k, k + K * seq(0, K-1)] <- 1
-    
+
     # Match P(M = k | D = 1)
     A.obs[K + k, ((k-1) * K + 1):(k * K)] <- 1
-    
-    ## # sum theta_{l<k} bound 
+
+    ## # sum theta_{l<k} bound
     ## A.obs[2 * K + k, (k-1) * K + k] <- -1
     ## A.obs[2 * K + k, par_lengths[1] + ((k-1) * d_y + 1):(k * d_y)] <- -1
-    
+
     # sup Delta(A) bound
     A.obs[2 * K + ((k-1) * d_y + 1):(k * d_y),
           par_lengths[1] + ((k-1) * d_y + 1):(k * d_y)] <- diag(d_y)
@@ -119,7 +126,7 @@ test_sharp_null_cr <- function(df,
   A.tgt <- numeric(len_x)
   A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
   A.tgt <- A.tgt[-l_gt_k_inds]
-  
+
   # Run FSST
   lpm <- lpinfer::lpmodel(A.obs = A.obs,
                           A.shp = A.shp,
@@ -128,7 +135,7 @@ test_sharp_null_cr <- function(df,
                           beta.shp = beta.shp)
 
   return(lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
-                       weight.matrix = weight.matrix))  
+                       weight.matrix = weight.matrix))
 }
 
 get_beta.obs <- function(yvec, dvec, mvec) {
@@ -146,6 +153,6 @@ get_beta.obs <- function(yvec, dvec, mvec) {
   p_m_d1 <- colSums(p_ym_d1)
 
   beta.obs <- c(p_m_d0, p_m_d1, p_ym_d1 - p_ym_d0)
-  
+
   return(beta.obs)
 }

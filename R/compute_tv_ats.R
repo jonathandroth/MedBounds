@@ -12,6 +12,13 @@
 
 compute_tv_ats <- function(df, d, m, y, w = NULL, continuous_Y = TRUE){
 
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y,
+                               w = w)
+
+
   yvec <- df[[y]]
   dvec <- df[[d]]
   mvec <- df[[m]]

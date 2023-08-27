@@ -22,6 +22,18 @@ compute_tv_ats_multiple_m <- function(df,
                                       w = NULL,
                                       continuous_Y = TRUE){
 
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y,
+                               w = w)
+
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y,
+                               w = w)
+
   yvec <- df[[y]]
   dvec <- df[[d]]
   mdf <- df[,m]

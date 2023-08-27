@@ -18,6 +18,13 @@ compute_bounds_ats <- function(df,
                                c_at_ratio = NULL,
                                adjust_for_point_mass = TRUE){
 
+
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y,
+                               w = w)
+
   yvec <- df[[y]]
   dvec <- df[[d]]
   mvec <- df[[m]]

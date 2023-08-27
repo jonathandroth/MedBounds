@@ -20,6 +20,13 @@
 test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
                                eps_bar = 1e-03, alpha = .05){
 
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y,
+                               w = w)
+
+
   yvec <- df[[y]]
   dvec <- df[[d]]
   mvec <- df[[m]]
@@ -30,15 +37,15 @@ test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
 
   # Sample size
   n <- nrow(df)
-  
+
   # Make sure the ordering is defined for all support points
   if (!is.null(ordering) & !all(as.character(unique(mvec)) %in% names(ordering))) {
     stop("Variable ordering does not include all possible values of m!")
   }
-  
+
   # Define "less than or equal to" function for the given partial ordering
   po_leq <- function(l, k) {
-    ifelse(is.null(ordering), l <= k, l %in% ordering[[as.character(k)]])    
+    ifelse(is.null(ordering), l <= k, l %in% ordering[[as.character(k)]])
   }
 
   # Getting ready to use lpinfer
@@ -60,7 +67,7 @@ test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
 
   # Get hold of the indices
   l_gt_k_inds <- which(l_gt_k_mat)
-  
+
   # Set shape constraints using A.shp x = beta.shp
   A.shp <- matrix(0, nrow = K, ncol = len_x)
 
@@ -83,18 +90,18 @@ test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
   A.obs <- matrix(0,
                   nrow = K + K + (d_y * K),
                   ncol = len_x)
-  
-  for (k in 1:K) { 
+
+  for (k in 1:K) {
     # Match P(M = k | D = 0)
     A.obs[k, k + K * seq(0, K-1)] <- 1
-    
+
     # Match P(M = k | D = 1)
     A.obs[K + k, ((k-1) * K + 1):(k * K)] <- 1
-    
-    ## # sum theta_{l<k} bound 
+
+    ## # sum theta_{l<k} bound
     ## A.obs[2 * K + k, (k-1) * K + k] <- -1
     ## A.obs[2 * K + k, par_lengths[1] + ((k-1) * d_y + 1):(k * d_y)] <- -1
-    
+
     # sup Delta(A) bound
     A.obs[2 * K + ((k-1) * d_y + 1):(k * d_y),
           par_lengths[1] + ((k-1) * d_y + 1):(k * d_y)] <- diag(d_y)
@@ -105,12 +112,12 @@ test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
 
   # Define beta.obs
   beta.obs <- get_beta.obs(factor(yvec), dvec, factor(mvec))
-  
+
   # Equalities to two inequalities
   A.obs <- rbind(A.obs, -A.obs[1:(2 * K),])
   beta.obs <- c(beta.obs, -beta.obs[1:(2 * K)])
 
-  
+
   # Define target parameter
   A.tgt <- numeric(len_x)
   A.tgt[sum(par_lengths[1:2]) + (1:K)] <- 1
@@ -126,7 +133,7 @@ test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
   rhs <- c(beta.shp, beta.obs)
   lb <- rep(0, len_x)
   ub <- rep(1, len_x)
-  
+
   # Optimization parameters: suppress output
   params <- list(OutputFlag=0)
 
@@ -137,7 +144,7 @@ test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
   model$lb  <- lb
   model$ub  <- ub
   model$sense <- rep('>', length(rhs))
-    
+
   # Optimize for "l"
   model$modelsense <- 'min'
   min.result <- gurobi::gurobi(model, params)
@@ -223,7 +230,7 @@ test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
     ############################################################################
     # Compute LB-,UB-
     model$obj<- A.tgt - xi_obj
-    
+
     # Optimize LB-
     model$modelsense <- 'min'
     bmin.result.m <- gurobi::gurobi(model, params)
@@ -252,7 +259,7 @@ test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
     # Optimize UB+
     model$modelsense <- 'max'
     bmax.result.p <- gurobi::gurobi(model, params)
-    
+
     # Record upper bound
     boot_ubplus[b] <- bmax.result.p$objval
   }
@@ -280,6 +287,6 @@ test_sharp_null_cr <- function(df, d, m, y, ordering = NULL, B = 500,
   #compute confidence set for alpha=0.05
   CSlb <- min(lbminus, lbplus) - (1/sqrt(n)) * max(psi_k_lb_minus, psi_k_lb_plus)
   CSub <- max(ubminus, ubplus) + (1/sqrt(n)) * max(psi_k_ub_minus, psi_k_ub_plus)
-  
-  return(list(CI = c(CSlb, CSub), reject = (0 < CSlb)))  
+
+  return(list(CI = c(CSlb, CSub), reject = (0 < CSlb)))
 }

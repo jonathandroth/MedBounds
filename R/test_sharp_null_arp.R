@@ -26,6 +26,13 @@ test_sharp_null_arp <- function(df,
                             cluster = NULL,
                             weight.matrix = "diag"){
 
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y,
+                               w = w)
+
+
   yvec <- df[[y]]
   dvec <- df[[d]]
   mvec <- df[[m]]

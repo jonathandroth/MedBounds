@@ -30,6 +30,13 @@ test_sharp_null_arp_binary_m <- function(df,
                                 kappa = alpha/10,
                                 use_hybrid = T){
 
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y,
+                               w = w)
+
+
   yvec <- df[[y]]
   dvec <- df[[d]]
   mvec <- df[[m]]
