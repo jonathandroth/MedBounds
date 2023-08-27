@@ -9,6 +9,7 @@
 #' @param density_1_label (Optional) The label on the plot for the d=1 density.
 #' @param density_0_label (Optional) The label on the plot for the d=0 density.
 #' @param continuous_Y (Optional) Should Y be treated as continuous for density estimation. Default is TRUE. Use FALSE for discrete Y
+#' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @return A ggplot object showing partial densities
 #' @importFrom ggplot2 ggplot
 #' @importFrom ggplot2 aes
@@ -27,7 +28,9 @@ partial_density_plot <- function(df,
                                  plot_nts = FALSE,
                                  density_1_label = "f(Y,M=1|D=1)",
                                  density_0_label = "f(Y,M=1|D=0)",
-                                 continuous_Y = TRUE){
+                                 num_Ybins = NULL,
+                                 continuous_Y = base::ifelse(is.null(num_Ybins),
+                                                             TRUE,FALSE)){
 
   df <- remove_missing_from_df(df = df,
                                d = d,
@@ -62,10 +65,15 @@ partial_density_plot <- function(df,
                            plot_nts = FALSE,
                            density_1_label = density_1_label,
                            density_0_label = density_0_label,
+                           num_Ybins = num_Ybins,
                            continuous_Y = continuous_Y))
   }
 
   yvec <- df[[y]]
+
+  if(!is.null(num_Ybins)){
+    yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
+  }
 
   partial_densities_and_shares <- compute_partial_densities_and_shares(df = df,
                                                                        d = d,

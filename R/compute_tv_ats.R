@@ -8,9 +8,12 @@
 #' @param w (Optional) Name of weighting variable. If null, equal weights are used
 #' @param continuous_Y (Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.
 #@param method Either "density", to use a kernel density to compute TV, or "bins", to use a discrete approximation
+#' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @export
 
-compute_tv_ats <- function(df, d, m, y, w = NULL, continuous_Y = TRUE){
+compute_tv_ats <- function(df, d, m, y, w = NULL,
+                           continuous_Y = base::ifelse(is.null(num_Ybins),TRUE,FALSE),
+                           num_Ybins = NULL){
 
   df <- remove_missing_from_df(df = df,
                                d = d,
@@ -20,6 +23,11 @@ compute_tv_ats <- function(df, d, m, y, w = NULL, continuous_Y = TRUE){
 
 
   yvec <- df[[y]]
+
+  if(!is.null(num_Ybins)){
+    yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
+  }
+
   dvec <- df[[d]]
   mvec <- df[[m]]
 

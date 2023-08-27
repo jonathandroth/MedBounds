@@ -16,6 +16,7 @@
 #' @param cluster Cluster for bootstrap
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
+#' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @export
 test_sharp_null_arp_binary_m <- function(df,
                                 d,
@@ -28,7 +29,8 @@ test_sharp_null_arp_binary_m <- function(df,
                                 ats_only = F,
                                 alpha = 0.05,
                                 kappa = alpha/10,
-                                use_hybrid = T){
+                                use_hybrid = T,
+                                num_Ybins = NULL){
 
   df <- remove_missing_from_df(df = df,
                                d = d,
@@ -38,6 +40,11 @@ test_sharp_null_arp_binary_m <- function(df,
 
 
   yvec <- df[[y]]
+
+  if(!is.null(num_Ybins)){
+    yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
+  }
+
   dvec <- df[[d]]
   mvec <- df[[m]]
 

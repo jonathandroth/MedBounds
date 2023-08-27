@@ -15,6 +15,8 @@
 #' @param B Bootstrap size, default is 500
 #' @param eps_bar Perturbation parameter used to perturb the
 #'   objective/constraints
+ #' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
+
 #' @export
 test_sharp_null_cr <- function(df,
                                d,
@@ -22,7 +24,8 @@ test_sharp_null_cr <- function(df,
                                y,
                                ordering = NULL,
                                B = 500,
-                               eps_bar = 1e-03){
+                               eps_bar = 1e-03,
+                               num_Ybins = NULL){
 
   df <- remove_missing_from_df(df = df,
                                d = d,
