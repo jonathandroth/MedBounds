@@ -23,8 +23,7 @@ test_sharp_null_fsst <- function(df, d, m, y, ordering = NULL, B = 500,
   df <- remove_missing_from_df(df = df,
                                d = d,
                                m = m,
-                               y = y,
-                               w = w)
+                               y = y)
 
 
   yvec <- df[[y]]

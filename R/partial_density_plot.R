@@ -32,8 +32,7 @@ partial_density_plot <- function(df,
   df <- remove_missing_from_df(df = df,
                                d = d,
                                m = m,
-                               y = y,
-                               w = w)
+                               y = y)
 
 
   #If plot_nts = TRUE, re-run with m -> 1-m, d -> 1-d and flip the labels
