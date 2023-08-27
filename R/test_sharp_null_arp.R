@@ -17,6 +17,7 @@
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
 #' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
+#' @param alpha Significance level. Default is 0.05
 #' @export
 test_sharp_null_arp <- function(df,
                             d,
@@ -26,7 +27,8 @@ test_sharp_null_arp <- function(df,
                             B = 500,
                             cluster = NULL,
                             weight.matrix = "diag",
-                            num_Ybins = NULL){
+                            num_Ybins = NULL,
+                            alpha = 0.05){
 
   df <- remove_missing_from_df(df = df,
                                d = d,
@@ -263,7 +265,7 @@ df[[y]] <- yvec
                                              y_T = beta,
                                              X_T = A,
                                              sigma = sigma,
-                                             alpha = 0.05,
+                                             alpha = alpha,
                                              hybrid_flag = "ARP"
                                              )
 
