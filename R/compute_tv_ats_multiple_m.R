@@ -12,6 +12,7 @@
 #' ATs who have M(1)=M(0)=at_group. If at_group is null (the default), we compute a lower bound on
 #' the weighted average of TV across all always-takers, with weights proportional to shares in population
 #' @param continuous_Y (Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.
+#' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @export
 
 compute_tv_ats_multiple_m <- function(df,
@@ -20,7 +21,8 @@ compute_tv_ats_multiple_m <- function(df,
                                       y,
                                       at_group = NULL,
                                       w = NULL,
-                                      continuous_Y = TRUE){
+                                      continuous_Y = base::ifelse(is.null(num_Ybins),TRUE,FALSE),
+                                      num_Ybins = NULL){
 
   df <- remove_missing_from_df(df = df,
                                d = d,
@@ -28,13 +30,14 @@ compute_tv_ats_multiple_m <- function(df,
                                y = y,
                                w = w)
 
-  df <- remove_missing_from_df(df = df,
-                               d = d,
-                               m = m,
-                               y = y,
-                               w = w)
 
   yvec <- df[[y]]
+
+  if(!is.null(num_Ybins)){
+    yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
+    df[[y]] <- yvec
+  }
+
   dvec <- df[[d]]
   mdf <- df[,m]
 
