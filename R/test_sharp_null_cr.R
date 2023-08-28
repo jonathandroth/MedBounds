@@ -183,7 +183,7 @@ df[[y]] <- yvec
 
   # Record lower bound
   lbminus <- min.result.m$objval
-
+  if (length(lbminus) == 0) stop("length(lbminus) is zero!")
   # Optimize UB-
   model$modelsense <- 'max'
   max.result.m <- gurobi::gurobi(model, params)
