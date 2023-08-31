@@ -16,7 +16,8 @@ test_sharp_null_arp_binary_m(
   ats_only = F,
   alpha = 0.05,
   kappa = alpha/10,
-  use_hybrid = T
+  use_hybrid = T,
+  num_Ybins = NULL
 )
 }
 \arguments{
@@ -41,6 +42,8 @@ ordering is used.}
 
 \item{weight.matrix}{Weight matrix used to implement FSST. Possible options
 are "diag", "avar", "identity." Defaults is "diag" as in FSST.}
+
+\item{num_Ybins}{(Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)}
 }
 \description{
 This function tests the sharp null of Y(1,m) = Y(0,m). The

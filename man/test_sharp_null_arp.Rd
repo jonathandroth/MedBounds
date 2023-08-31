@@ -12,7 +12,9 @@ test_sharp_null_arp(
   ordering = NULL,
   B = 500,
   cluster = NULL,
-  weight.matrix = "diag"
+  weight.matrix = "diag",
+  num_Ybins = NULL,
+  alpha = 0.05
 )
 }
 \arguments{
@@ -37,6 +39,10 @@ ordering is used.}
 
 \item{weight.matrix}{Weight matrix used to implement FSST. Possible options
 are "diag", "avar", "identity." Defaults is "diag" as in FSST.}
+
+\item{num_Ybins}{(Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)}
+
+\item{alpha}{Significance level. Default is 0.05}
 }
 \description{
 This function tests the sharp null of Y(1,m) = Y(0,m). The

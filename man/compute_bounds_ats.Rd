@@ -11,7 +11,8 @@ compute_bounds_ats(
   y,
   w = NULL,
   c_at_ratio = NULL,
-  adjust_for_point_mass = TRUE
+  adjust_for_point_mass = TRUE,
+  num_Ybins = NULL
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ compute_bounds_ats(
 \item{c_at_ratio}{(Optional) specify the ratio of E[Y(1,1) | C]/E[Y(1,1) | AT]. If this is specified, direct effect for ATs is point-identified}
 
 \item{adjust_for_point_mass}{(Optional) specify whether to use a correction to the bounds that allows for point-mass in the distribution of Y (default TRUE)}
+
+\item{num_Ybins}{(Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)}
 }
 \description{
 Computes bounds on E[Y(1,1) - Y(1,0) | G = AT], the average direct effect for ATs for whom there is a direct effect of D on Y

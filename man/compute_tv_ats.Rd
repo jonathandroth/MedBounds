@@ -4,7 +4,15 @@
 \alias{compute_tv_ats}
 \title{Bounds on fraction of always-takers affected}
 \usage{
-compute_tv_ats(df, d, m, y, w = NULL, continuous_Y = TRUE)
+compute_tv_ats(
+  df,
+  d,
+  m,
+  y,
+  w = NULL,
+  continuous_Y = base::ifelse(is.null(num_Ybins), TRUE, FALSE),
+  num_Ybins = NULL
+)
 }
 \arguments{
 \item{df}{A data frame}
@@ -18,6 +26,8 @@ compute_tv_ats(df, d, m, y, w = NULL, continuous_Y = TRUE)
 \item{w}{(Optional) Name of weighting variable. If null, equal weights are used}
 
 \item{continuous_Y}{(Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.}
+
+\item{num_Ybins}{(Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)}
 }
 \description{
 Computes bounds on the TV distance btwn Y(1,1) and Y(1,0) for always takers
