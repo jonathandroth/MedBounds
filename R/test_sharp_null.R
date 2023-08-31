@@ -17,6 +17,7 @@
 #' @param cluster Cluster for bootstrap
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
+#' @param hybrid_kappa The first-stage size value of the ARP hybrid test. If NULL, the ARP conditional (non-hybrid) test is used. Default is alpha/10
 #' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @param alpha Significance level. Default is 0.05
 #' @export
@@ -31,6 +32,7 @@ test_sharp_null <- function(df,
                             B = 500,
                             cluster = NULL,
                             weight.matrix = "diag",
+                            hybrid_kappa = alpha/10,
                             num_Ybins = NULL,
                             alpha = 0.05){
 
@@ -155,12 +157,30 @@ test_sharp_null <- function(df,
 
     #Run the relevant test
     if(method == "ARP"){
+      if(is.null(hybrid_kappa)){
       arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
                                                  y_T = beta,
                                                  X_T = A,
                                                  sigma = sigma,
                                                  alpha = alpha,
                                                  hybrid_flag = "ARP")
+      }else{
+        lf_cv <- HonestDiD:::.compute_least_favorable_cv(X_T = A,
+                                                         sigma = sigma,
+                                                         hybrid_kappa = hybrid_kappa)
+
+        hybrid_list <- list(hybrid_kappa = hybrid_kappa,
+                            lf_cv = lf_cv)
+
+        arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
+                                                   y_T = beta,
+                                                   X_T = A,
+                                                   sigma = sigma,
+                                                   alpha = alpha,
+                                                   hybrid_flag = "LF",
+                                                   hybrid_list = hybrid_list)
+
+      }
 
       return(arp)
     }
