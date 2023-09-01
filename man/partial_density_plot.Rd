@@ -13,7 +13,8 @@ partial_density_plot(
   plot_nts = FALSE,
   density_1_label = "f(Y,M=1|D=1)",
   density_0_label = "f(Y,M=1|D=0)",
-  continuous_Y = TRUE
+  num_Ybins = NULL,
+  continuous_Y = base::ifelse(is.null(num_Ybins), TRUE, FALSE)
 )
 }
 \arguments{
@@ -32,6 +33,8 @@ partial_density_plot(
 \item{density_1_label}{(Optional) The label on the plot for the d=1 density.}
 
 \item{density_0_label}{(Optional) The label on the plot for the d=0 density.}
+
+\item{num_Ybins}{(Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)}
 
 \item{continuous_Y}{(Optional) Should Y be treated as continuous for density estimation. Default is TRUE. Use FALSE for discrete Y}
 }

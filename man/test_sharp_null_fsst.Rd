@@ -12,7 +12,8 @@ test_sharp_null_fsst(
   ordering = NULL,
   B = 500,
   weight.matrix = "diag",
-  alpha = 0.05
+  alpha = 0.05,
+  num_Ybins = NULL
 )
 }
 \arguments{
@@ -37,6 +38,8 @@ ordering is used.}
 are "diag", "avar", "identity." Defaults is "diag" as in FSST.}
 
 \item{alpha}{Significance level. Default value is .05.}
+
+\item{num_Ybins}{(Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)}
 }
 \description{
 This function tests the sharp null of Y(1,m) = Y(0,m). The
