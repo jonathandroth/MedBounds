@@ -16,7 +16,9 @@ test_sharp_null(
   weight.matrix = "diag",
   hybrid_kappa = alpha/10,
   num_Ybins = NULL,
-  alpha = 0.05
+  alpha = 0.05,
+  rearrange = FALSE,
+  eps_bar = 0.001
 )
 }
 \arguments{
@@ -24,30 +26,30 @@ test_sharp_null(
 
 \item{d}{Name of the treatment variable in the df}
 
-\item{m}{Name of the mediator variable}
+\item{m}{Name of the mediator variable(s)}
 
 \item{y}{Name of the outcome variable, which is assumed to take a discrete
-support
-@param method Method to use. One of "ARP, "CS", "FSST", "CR"}
+support}
 
-\item{ordering}{A list with length equal to the cardinality of the support of
-the mediator variable. The name of each element corresponds to a point in
-the support, and each element is a vector that collects all m values that
-are less than or equal to this point. If ordering = NULL, the standard
-ordering is used.}
+\item{method}{Method to use. One of "ARP, "CS", "FSST", "CR"}
+
+\item{ordering}{A list with length equal to the cardinality of the support of the mediator variable. The name of each element corresponds to a point in the support, and each element is a vector that collects all m values that are less than or equal to this point. If ordering = NULL, the standard ordering is used. If length(m) > 1, then the default is the elementwise ordering.}
 
 \item{B}{Bootstrap size, default is 500}
 
 \item{cluster}{Cluster for bootstrap}
 
-\item{weight.matrix}{Weight matrix used to implement FSST. Possible options
-are "diag", "avar", "identity." Defaults is "diag" as in FSST.}
+\item{weight.matrix}{Weight matrix used to implement FSST. Possible options are "diag", "avar", "identity." Defaults is "diag" as in FSST.}
 
 \item{hybrid_kappa}{The first-stage size value of the ARP hybrid test. If NULL, the ARP conditional (non-hybrid) test is used. Default is alpha/10}
 
 \item{num_Ybins}{(Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)}
 
 \item{alpha}{Significance level. Default is 0.05}
+
+\item{rearrange}{Logical variable indicating whether to rearrange the conditional probabilities to obey monotonicity. Default is FALSE. If method = CR and to rearrange = FALSE, additional nuisance parameters are added to the inequalities involving P(M|D)}
+
+\item{eps_bar}{Perturbation parameters used for method = "CR". Default value is 1e-03, following Cho and Russell (2023).}
 }
 \description{
 This function tests the sharp null that Y(1,m) = Y(0,m). The
