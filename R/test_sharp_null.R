@@ -4,25 +4,21 @@
 #'   values. Several options are available for infernece.
 #' @param df A data frame
 #' @param d Name of the treatment variable in the df
-#' @param m Name of the mediator variable
+#' @param m Name of the mediator variable(s)
 #' @param y Name of the outcome variable, which is assumed to take a discrete
 #'   support
-#'   @param method Method to use. One of "ARP, "CS", "FSST", "CR"
-#' @param ordering A list with length equal to the cardinality of the support of
-#'   the mediator variable. The name of each element corresponds to a point in
-#'   the support, and each element is a vector that collects all m values that
-#'   are less than or equal to this point. If ordering = NULL, the standard
-#'   ordering is used.
+#' @param method Method to use. One of "ARP, "CS", "FSST", "CR"
+#' @param ordering A list with length equal to the cardinality of the support of the mediator variable. The name of each element corresponds to a point in the support, and each element is a vector that collects all m values that are less than or equal to this point. If ordering = NULL, the standard ordering is used. If length(m) > 1, then the default is the elementwise ordering.
 #' @param B Bootstrap size, default is 500
 #' @param cluster Cluster for bootstrap
-#' @param weight.matrix Weight matrix used to implement FSST. Possible options
-#'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
+#' @param weight.matrix Weight matrix used to implement FSST. Possible options are "diag", "avar", "identity." Defaults is "diag" as in FSST.
 #' @param hybrid_kappa The first-stage size value of the ARP hybrid test. If NULL, the ARP conditional (non-hybrid) test is used. Default is alpha/10
 #' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @param alpha Significance level. Default is 0.05
+#' @param rearrange Logical variable indicating whether to rearrange the conditional probabilities to obey monotonicity. Default is FALSE. If method = CR and to rearrange = FALSE, additional nuisance parameters are added to the inequalities involving P(M|D)
+#' @param eps_bar Perturbation parameters used for method = "CR". Default value is 1e-03, following Cho and Russell (2023). 
 #' @export
 #'
-
 test_sharp_null <- function(df,
                             d,
                             m,
@@ -34,17 +30,42 @@ test_sharp_null <- function(df,
                             weight.matrix = "diag",
                             hybrid_kappa = alpha/10,
                             num_Ybins = NULL,
-                            alpha = 0.05){
+                            alpha = 0.05,
+                            rearrange = FALSE,
+                            eps_bar = 1e-03){
 
   ## Process the inputted df ----
 
-  #Remove missing values
+  # Remove missing values
 
   df <- remove_missing_from_df(df = df,
                                d = d,
                                m = m,
                                y = y)
+  
+  # Sample size
+  n <- nrow(df)
+  
+  # If M is multivariate convert to univariate and use elementwise ordering
+  if (length(m) > 1) {
 
+    m_supp <- unique(df[m])
+    ordering <- vector("list", length = nrow(m_supp))
+    names(ordering) <- 1:nrow(m_supp)
+
+    # Create ordering and replace multivariate M by a univariate M
+    uni_m <- numeric(n)
+    for (k in 1:nrow(m_supp)) {
+      m_k <- m_supp[k,]
+      ordering[[as.character(k)]] <-
+        which(apply(m_supp, 1, function(m_supp_elem) all(m_supp_elem <= m_k)))
+      uni_m[colSums(as.vector(m_k) == t(df[m])) == 2] <- k 
+    }
+
+    df$m <- uni_m
+    m <- "m"
+  }
+  
   #Discretize y if needed
   if(!is.null(num_Ybins)){
     df[[y]] <- discretize_y(yvec = df[[y]], numBins = num_Ybins)
@@ -81,14 +102,20 @@ test_sharp_null <- function(df,
     dplyr::arrange(m,y) %>%
     dplyr::select(y,m)
 
-  #Compute beta.obs at the observed data
+  # Current version allows only rearrange = TRUE when method = CR
+  if (method == "CR") {
+    regarrange <- TRUE
+  }
+  
+  # Compute beta.obs at the observed data
   beta.obs <- get_beta.obs_fn(yvec = yvec,
-                           dvec = dvec,
-                           mvec = mvec,
-                           inequalities_only = inequalities_only,
-                           yvalues = yvalues,
-                           mvalues = mvalues,
-                           my_values = my_values)
+                              dvec = dvec,
+                              mvec = mvec,
+                              inequalities_only = inequalities_only,
+                              yvalues = yvalues,
+                              mvalues = mvalues,
+                              my_values = my_values,
+                              rearrange = rearrange)
 
   #Bootstrap to get beta.obs_list
   beta.obs_list <- compute_bootstrap_draws_clustered(
@@ -100,7 +127,8 @@ test_sharp_null <- function(df,
         inequalities_only = inequalities_only,
         yvalues = yvalues,
         mvalues = mvalues,
-        my_values = my_values)},
+        my_values = my_values,
+        rearrange = rearrange)},
     df = df,
     d = d,
     m = m,
@@ -125,11 +153,171 @@ test_sharp_null <- function(df,
     fsst_result <- lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
                                  weight.matrix = weight.matrix)
 
-    return(list(result = fsst_result, reject = (fsst_result$pval < alpha)))
+    return(list(result = fsst_result, reject = (fsst_result$pval[1, 2] < alpha)))
   }
 
-  if(method == "CR"){
-    stop("Cho and Russell not yet implemented")
+  if (method == "CR") {
+    # Define target parameter
+    A.tgt <- A_list$A.tgt
+    len_x <- length(A.tgt)
+    
+    params <- list(OutputFlag=0)
+
+
+    # Define gurobi model
+    model <- list()
+
+    A <- rbind(A.shp, A.obs)
+    rhs <- c(beta.shp, beta.obs)
+    lb <- rep(0, len_x)
+    ub <- rep(1, len_x)
+
+    # Combine lower and upper bound into matrix
+    model$A <- A
+    model$obj <- A.tgt
+    model$rhs <- rhs
+    model$lb  <- lb
+    model$ub  <- ub
+    model$sense <- rep('>', length(rhs))
+
+    # Optimize for "l"
+    model$modelsense <- 'min'
+    min.result <- gurobi::gurobi(model, params)
+
+    # Optimize for "u"
+    model$modelsense <- 'max'
+    max.result <- gurobi::gurobi(model, params)
+
+    # Draw perturbation
+    xi_obj <- runif(len_x) * eps_bar
+    xi_rhs <- runif(length(rhs)) * eps_bar
+    xi_lb <- runif(len_x) * eps_bar
+    xi_ub <- runif(len_x) * eps_bar
+
+    ############################################################################
+    # Compute LB-,LB+,UB-,UB+
+    ############################################################################
+
+    model$rhs <- rhs - xi_rhs
+    model$lb <- lb - xi_lb
+    model$ub <- ub + xi_ub
+
+    ############################################################################
+    # Compute LB-,UB-
+    model$obj<- A.tgt - xi_obj
+
+    # Optimize LB-
+    model$modelsense <- 'min'
+    min.result.m <- gurobi::gurobi(model, params)
+
+    # Record lower bound
+    lbminus <- min.result.m$objval
+
+    # Optimize UB-
+    model$modelsense <- 'max'
+    max.result.m <- gurobi::gurobi(model, params)
+
+    # Record lower bound
+    ubminus <- max.result.m$objval
+
+    #######################################################
+    # Compute LB+,UB+
+    model$obj <- A.tgt + xi_obj
+
+    # Optimize
+    model$modelsense <- 'min'
+    min.result.p <- gurobi::gurobi(model, params)
+
+    # Record lower bound
+    lbplus <- min.result.p$objval
+
+    # Optimize UB-
+    model$modelsense <- 'max'
+    max.result.p <- gurobi::gurobi(model, params)
+
+    # Rrecord upper bound
+    ubplus <- max.result.p$objval
+
+    ############################################################################
+    # Begin bootstrap procedure
+    boot_lbminus <- rep(NA, B)
+    boot_lbplus <- rep(NA, B)
+    boot_ubminus <- rep(NA, B)
+    boot_ubplus <- rep(NA, B)
+
+    for (b in 1:B) {
+
+      # Get beta.obs for bootstrap draw
+      beta.obs_b <- beta.obs_list[[b]]
+
+      # Update rhs
+      rhs_b <- c(beta.shp, beta.obs_b)
+      
+      # Update model
+      model$rhs <- rhs_b - xi_rhs
+
+      ############################################################################
+      # Compute LB-,UB-
+      model$obj<- A.tgt - xi_obj
+
+      # Optimize LB-
+      model$modelsense <- 'min'
+      bmin.result.m <- gurobi::gurobi(model, params)
+      
+      # Record lower bound
+      boot_lbminus[b] <- bmin.result.m$objval
+
+      # Optimize UB-
+      model$modelsense <- 'max'
+      bmax.result.m <- gurobi::gurobi(model, params)
+
+      # Record upper bound
+      boot_ubminus[b] <- bmax.result.m$objval
+
+      ###################################################
+      # Objective function for LB+ and UB+
+      model$obj<- A.tgt + xi_obj
+
+      # Optimize LB+
+      model$modelsense <- 'min'
+      bmin.result.p <- gurobi::gurobi(model, params)
+
+      # Record lower bound
+      boot_lbplus[b] <- bmin.result.p$objval
+
+      # Optimize UB+
+      model$modelsense <- 'max'
+      bmax.result.p <- gurobi::gurobi(model, params)
+
+      # Record upper bound
+      boot_ubplus[b] <- bmax.result.p$objval
+    }
+
+    # Compute indicator Dn
+    bn <- 1/sqrt(log(n))
+    Delta <- max(ubplus, ubminus) - min(lbminus, lbplus)
+    Dn <- (Delta > bn) + 0
+
+    # Calculate kappa
+    kappa <- (1 - alpha) * Dn + (1 - alpha/2) * (1 - Dn)
+
+    # Bootstrap quantities
+    lbminus_q <- sqrt(n) * (boot_lbminus - lbminus)
+    lbplus_q <- sqrt(n) * (boot_lbplus - lbplus)
+    ubminus_q <- -sqrt(n) * (boot_ubminus - ubminus)
+    ubplus_q <- -sqrt(n) * (boot_ubplus - ubplus)
+
+    # Select quantile according to kappa
+    psi_k_lb_minus <- quantile(lbminus_q, kappa)
+    psi_k_lb_plus <- quantile(lbplus_q, kappa)
+    psi_k_ub_minus <- quantile(ubminus_q, kappa)
+    psi_k_ub_plus <- quantile(ubplus_q, kappa)
+
+    #compute confidence set for alpha=0.05
+    CSlb <- min(lbminus, lbplus) - (1/sqrt(n)) * max(psi_k_lb_minus, psi_k_lb_plus)
+    CSub <- max(ubminus, ubplus) + (1/sqrt(n)) * max(psi_k_ub_minus, psi_k_ub_plus)
+
+    return(list(CI = c(CSlb, CSub), reject = (0 < CSlb)))
   }
 
   if(method %in% c("ARP", "CS")){
@@ -156,7 +344,7 @@ test_sharp_null <- function(df,
                             nrow = NROW(sigma))}
 
     #Run the relevant test
-    if(method == "ARP"){
+    if (method == "ARP" ){
       if(is.null(hybrid_kappa)){
       arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
                                                  y_T = beta,
@@ -164,7 +352,7 @@ test_sharp_null <- function(df,
                                                  sigma = sigma,
                                                  alpha = alpha,
                                                  hybrid_flag = "ARP")
-      }else{
+      } else {
         lf_cv <- HonestDiD:::.compute_least_favorable_cv(X_T = A,
                                                          sigma = sigma,
                                                          hybrid_kappa = hybrid_kappa)
@@ -310,15 +498,15 @@ construct_Aobs_Ashp_betashp <- function(yvec,
                 sum(par_lengths[1:3]) + ((k-1) * d_y + 1):(k * d_y))] <- -1
   }
 
-  if(inequalities_only){
+  if (inequalities_only) {
   #Remove both the extraneous thetas *and* kappa,zeta,eta
   A.obs <- A.obs[, -c(l_gt_k_inds, kappa_indices, eta_indices, zeta_indices)]
 
   #The first 2K rows of A.obs are equality constraints, so we duplicate them with opposite signs to get equalities as inequalities
-  A.obs <- rbind(A.obs[1:(2*K),],
-                 -A.obs[1:(2*K),],
-                 A.obs[(2*K+1):NROW(A.obs), ])
-  }else{
+  A.obs <- rbind(A.obs[1:(2 * K),],
+                 -A.obs[1:(2 * K),],
+                 A.obs[(2 * K + 1):NROW(A.obs), ])
+  } else {
     #Remove the extraneous thetas only
     A.obs <- A.obs[, -c(l_gt_k_inds)]
   }
@@ -332,14 +520,15 @@ construct_Aobs_Ashp_betashp <- function(yvec,
   return(list(A.obs = A.obs,
               A.shp = A.shp,
               A.tgt = A.tgt,
-              beta.shp = beta.shp))
+              beta.shp = beta.shp,
+              par_length = length(A.tgt)))
 }
 
 
 
 # Constructing beta_obs
 get_beta.obs_fn <- function(yvec, dvec, mvec, inequalities_only,
-                            yvalues, mvalues, my_values) {
+                            yvalues, mvalues, my_values, rearrange = FALSE) {
   #Get frequencies for all possible values of (y,m) | D=0
   p_ym_0_vec <- purrr::map_dbl(.x = 1:NROW(my_values),
                                .f = ~mean(yvec[dvec == 0] == my_values$y[.x]
@@ -376,6 +565,16 @@ get_beta.obs_fn <- function(yvec, dvec, mvec, inequalities_only,
   p_m_d0 <- colSums(p_ym_d0)
   # d = 1
   p_m_d1 <- colSums(p_ym_d1)
+
+  if (rearrange) {
+    
+    cdf_m_d0 <- pmax(cumsum(p_m_d0), cumsum(p_m_d1))
+    cdf_m_d1 <- pmin(cumsum(p_m_d0), cumsum(p_m_d1))
+    
+    p_m_d0 <- diff(c(0, cdf_m_d0))
+    p_m_d1 <- diff(c(0, cdf_m_d1))
+    
+  }
 
   if(inequalities_only){
     #Duplicate the first two sets of rows with opposite signs
