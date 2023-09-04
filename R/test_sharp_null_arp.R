@@ -206,9 +206,6 @@ df[[y]] <- yvec
                   -p_m_d0, -p_m_d1,
                   p_ym_d1 - p_ym_d0)
 
-
-
-
     return(beta.obs)
   }
 
@@ -229,13 +226,6 @@ df[[y]] <- yvec
                                                      numdraws = B,
                                                      return_df = F)
 
-  # boot_mat <- matrix(sample(1:nrow(df), B * nrow(df), replace = T), nrow = B)
-  # # Get all beta_obs to pass to lpinfer
-  # beta.obs_list <- lapply(1:B,
-  #                         function(b) get_beta.obs(yvec[boot_mat[b,]],
-  #                                                  dvec[boot_mat[b,]],
-  #                                                  mvec[boot_mat[b,]])
-  # )
 
 
   # Get variance matrix of the beta.obs boostraps
