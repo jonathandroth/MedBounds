@@ -99,3 +99,13 @@ test_that("Fractional linear programming works on simple examples", {
   expect_equal(frac_lp_result$optimum, -12/11, tolerance = 0.01)
   expect_equal( max(abs(frac_lp_result$solution- c(7,0))), 0, tolerance = 0.01)
 })
+
+test_that("get error when monotonicity is violated",{
+  expect_error(compute_tv_ats_multiple_m(
+    kerwin_data %>% dplyr::mutate(minus_treated = 1-treated),
+    d = "minus_treated",
+    m = "primarily_leblango",
+    y = "EL_EGRA_PCA_Index"))
+})
+
+compute_tv_ats_multiple_m(kerwin_data %>% dplyr::mutate(minus_treated = 1-treated), d = "minus_treated", m = "primarily_leblango", y = "EL_EGRA_PCA_Index")

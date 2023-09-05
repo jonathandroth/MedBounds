@@ -255,6 +255,12 @@ Rglpk_solve_fractional_LP <- function(obj_numerator,
                                     max = FALSE,
                                     ...)
 
+  #We first check feasibility
+  if(denom_lp$status == 1){
+    stop("The LP is not feasible, likely because monotonicity is not satisfied.")
+  }
+
+  #Subject to feasibility, we check whether the solution for the denominator is positive
   if(denom_lp$optimum + constant_denominator <= 0){
     warning("The minimum value of the denominator is not positive. Returning NaN.")
     return(list(optimum=NaN))
