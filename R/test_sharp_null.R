@@ -16,7 +16,7 @@
 #' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @param alpha Significance level. Default is 0.05
 #' @param rearrange Logical variable indicating whether to rearrange the conditional probabilities to obey monotonicity. Default is FALSE. If method = CR and to rearrange = FALSE, additional nuisance parameters are added to the inequalities involving P(M|D)
-#' @param eps_bar Perturbation parameters used for method = "CR". Default value is 1e-03, following Cho and Russell (2023). 
+#' @param eps_bar Perturbation parameters used for method = "CR". Default value is 1e-03, following Cho and Russell (2023).
 #' @export
 #'
 test_sharp_null <- function(df,
@@ -42,10 +42,10 @@ test_sharp_null <- function(df,
                                d = d,
                                m = m,
                                y = y)
-  
+
   # Sample size
   n <- nrow(df)
-  
+
   # If M is multivariate convert to univariate and use elementwise ordering
   if (length(m) > 1) {
 
@@ -59,13 +59,13 @@ test_sharp_null <- function(df,
       m_k <- m_supp[k,]
       ordering[[as.character(k)]] <-
         which(apply(m_supp, 1, function(m_supp_elem) all(m_supp_elem <= m_k)))
-      uni_m[colSums(as.vector(m_k) == t(df[m])) == 2] <- k 
+      uni_m[colSums(as.vector(m_k) == t(df[m])) == 2] <- k
     }
 
     df$m <- uni_m
     m <- "m"
   }
-  
+
   #Discretize y if needed
   if(!is.null(num_Ybins)){
     df[[y]] <- discretize_y(yvec = df[[y]], numBins = num_Ybins)
@@ -106,7 +106,7 @@ test_sharp_null <- function(df,
   if (method == "CR") {
     regarrange <- TRUE
   }
-  
+
   # Compute beta.obs at the observed data
   beta.obs <- get_beta.obs_fn(yvec = yvec,
                               dvec = dvec,
@@ -147,10 +147,11 @@ test_sharp_null <- function(df,
     lpm <- lpinfer::lpmodel(A.obs = A.obs,
                             A.shp = A.shp,
                             A.tgt = A.tgt,
-                            beta.obs = beta.obs_list,
+                            beta.obs = c(list(beta.obs),
+                                         beta.obs_list),
                             beta.shp = beta.shp)
 
-    fsst_result <- lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
+    fsst_result <- lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B,
                                  weight.matrix = weight.matrix)
 
     return(list(result = fsst_result, reject = (fsst_result$pval[1, 2] < alpha)))
@@ -160,7 +161,7 @@ test_sharp_null <- function(df,
     # Define target parameter
     A.tgt <- A_list$A.tgt
     len_x <- length(A.tgt)
-    
+
     params <- list(OutputFlag=0)
 
 
@@ -252,7 +253,7 @@ test_sharp_null <- function(df,
 
       # Update rhs
       rhs_b <- c(beta.shp, beta.obs_b)
-      
+
       # Update model
       model$rhs <- rhs_b - xi_rhs
 
@@ -263,7 +264,7 @@ test_sharp_null <- function(df,
       # Optimize LB-
       model$modelsense <- 'min'
       bmin.result.m <- gurobi::gurobi(model, params)
-      
+
       # Record lower bound
       boot_lbminus[b] <- bmin.result.m$objval
 
@@ -567,13 +568,13 @@ get_beta.obs_fn <- function(yvec, dvec, mvec, inequalities_only,
   p_m_d1 <- colSums(p_ym_d1)
 
   if (rearrange) {
-    
+
     cdf_m_d0 <- pmax(cumsum(p_m_d0), cumsum(p_m_d1))
     cdf_m_d1 <- pmin(cumsum(p_m_d0), cumsum(p_m_d1))
-    
+
     p_m_d0 <- diff(c(0, cdf_m_d0))
     p_m_d1 <- diff(c(0, cdf_m_d1))
-    
+
   }
 
   if(inequalities_only){

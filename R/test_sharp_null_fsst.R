@@ -137,14 +137,16 @@ df[[y]] <- yvec
   A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
   A.tgt <- A.tgt[-l_gt_k_inds]
 
+  beta.obs <- get_beta.obs(factor(yvec), dvec, factor(mvec))
   # Run FSST
   lpm <- lpinfer::lpmodel(A.obs = A.obs,
                           A.shp = A.shp,
                           A.tgt = A.tgt,
-                          beta.obs = beta.obs_list,
+                          beta.obs = c(list(beta.obs),
+                                       beta.obs_list),
                           beta.shp = beta.shp)
 
-  fsst_result <- lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B-1,
+  fsst_result <- lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B,
                                weight.matrix = weight.matrix)
 
   return(list(result = fsst_result, reject = (fsst_result$pval < alpha)))
