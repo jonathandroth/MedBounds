@@ -33,7 +33,7 @@ cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05){
     b <- A %*% Xstar - Y
     Y <- Xstar
     sigma <- V_Xstar
-  }else{
+  } else {
     A <- diag(NROW(sigma))
     b <- matrix(0,nrow = NROW(A), ncol =1)
   }
@@ -62,12 +62,12 @@ cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05){
 
   chisquared_df <- length(binding_index)
 
-  if(chisquared_df == 0){
+  if (chisquared_df == 0) {
     return(list(reject = 0,
                 test_stat = test_stat,
                 cv = 0,
                 pval = 1))
-  }else{
+  } else {
     cv <- qchisq(p = 1-alpha,
                  df = length(binding_index))
 

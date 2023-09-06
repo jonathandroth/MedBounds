@@ -78,7 +78,7 @@ test_sharp_null <- function(df,
   ## Construct the A matrices and beta.shp ----
 
   #Specify whether method requires us to input only inequalities
-  inequalities_only <- ifelse(method %in% c("ARP","CS"),
+  inequalities_only <- ifelse(method %in% c("ARP","CS", "CR"),
                               TRUE, FALSE )
 
   #Construct the relevant A matrices and beta.shp
@@ -331,22 +331,25 @@ test_sharp_null <- function(df,
     beta <- c(beta.obs, beta.shp)
     A <- rbind(A.obs, A.shp)
 
-    #Update the covariance matrix to have zero in blocks for the shape constraints
-    sigma <- rbind(cbind(sigma.obs, matrix(0,
-                                           nrow = NROW(sigma.obs),
-                                           ncol = NROW(A.shp) ) ),
-                   matrix(0, nrow = NROW(A.shp), ncol = NCOL(sigma.obs) + NROW(A.shp) ))
-
-    #Test if sigma is numerically not psd. If so, add small amount of noise
-    min_eig <- base::min(base::eigen(sigma, only.values = TRUE)$values)
-    if(min_eig < 0){
-      sigma <- sigma + diag(10*abs(min_eig),
-                            ncol = NROW(sigma),
-                            nrow = NROW(sigma))}
 
     #Run the relevant test
-    if (method == "ARP" ){
-      if(is.null(hybrid_kappa)){
+    if (method == "ARP" ) {
+
+      #Update the covariance matrix to have zero in blocks for the shape constraints
+      sigma <- rbind(cbind(sigma.obs, matrix(0,
+                                             nrow = NROW(sigma.obs),
+                                             ncol = NROW(A.shp) ) ),
+                     matrix(0, nrow = NROW(A.shp), ncol = NCOL(sigma.obs) + NROW(A.shp) ))
+
+      #Test if sigma is numerically not psd. If so, add small amount of noise
+      min_eig <- base::min(base::eigen(sigma, only.values = TRUE)$values)
+      if (min_eig < 0) {
+        sigma <- sigma + diag(10 * abs(min_eig),
+                              ncol = NROW(sigma),
+                              nrow = NROW(sigma))
+      }
+      
+      if (is.null(hybrid_kappa)) {
       arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
                                                  y_T = beta,
                                                  X_T = A,
@@ -368,20 +371,98 @@ test_sharp_null <- function(df,
                                                    alpha = alpha,
                                                    hybrid_flag = "LF",
                                                    hybrid_list = hybrid_list)
-
       }
 
       return(arp)
     }
 
     if(method == "CS"){
-      stop("Cox and Shi has not yet been implemented for the non-binary M case")
-    }
+      
+      ## Convert in C * delta <= m for to make use of the replication package
+      C_Z <- A
+      B_Z <- rbind(diag(length(beta.obs)), matrix(0, nrow = length(beta.shp), ncol = length(beta.shp)))
+      d_Z <- 0
+      
+      if(min(base::eigen(sigma, only.values = T)$values) < 10^-6){
+        #If sigma is not full-rank we extract the full rank component
 
+        eigendecomp <- eigen(sigma)
+        eigenvals <- eigendecomp$values
+        eigenvecs <- eigendecomp$vectors
+
+        tol <- 10^-6
+        positive_indices <- which(eigenvals > tol)
+
+        #Create a matrix that selects rows with positive indices
+        rem_red <- diag(length(eigenvals))
+        rem_red <- as.matrix(rem_red[positive_indices,])
+
+        #Deal with annoying fact that R converts to column vector if length 1
+        if (length(positive_indices) == 1) { rem_red <- t(rem_red) }
+
+        rem_red <- eigenvecs %*% t(rem_red)
+        
+        beta.obs_red <- t(rem_red) %*% beta.obs
+        V_red <- diag( x = eigenvals[positive_indices],
+                        nrow = length(eigenvals[positive_indices]))
+
+
+        # Adjust the linear programming parameters accordingly
+        # We have B_Z_red %*% mu - C_Z delta <= d_Z, following CS notation
+        B_Z_red <- B_Z %*% rem_red
+        d_Z <- B_Z %*% rem_red %*% beta.obs_red - B_Z %*% beta.obs 
+        sigma <- V_red
+        sigmaInv <- solve(sigma)
+      }
+      
+      d_nuis <- ncol(A)  # number of nuisance parameters
+      d_ineq <- nrow(A)  # number of inequalities
+
+      # Perform CC Test
+      
+      #Convert beta.obs_red to a column vector if not already
+      beta.obs_red <- as.matrix(beta.obs_red, ncol = length(beta.obs_red))
+
+      # Finding T (Test Statistic)
+
+      Amat <- - cbind(B_Z_red, - C_Z)
+      Dmat <- matrix(0, nrow = nrow(sigma) + d_nuis, ncol = nrow(sigma) + d_nuis)
+      Dmat[1:nrow(sigma), 1:nrow(sigma)] <- 2 * sigmaInv
+      dvec <- c(2 * sigmaInv %*% beta.obs_red, numeric(d_nuis))
+
+      qp <- quadprog::solve.QP(Dmat = Dmat,
+                               dvec = dvec,
+                               Amat = Amat,
+                               bvec = - d_Z)
+
+      T_cc <- qp$value + t(beta.obs_red) %*% sigmaInv %*% beta.obs_red
+
+      
+      # Find the Degree of Freedom:
+      tol <- 1e-8
+
+      # Enumerating the vertices using (outdated) package vertexenum
+      # Finds vertices for the polytope Ax <= b
+      A_vert <- rbind(-diag(d_ineq),
+                      t(C_Z),
+                      -t(C_Z),
+                      rep(1, d_ineq),
+                      -rep(1, d_ineq))
+      b_vert <- c(numeric(d_ineq), 2 * numeric(d_nuis), 1, -1)
+      H <- vertexenum::enumerate.vertices(A = A_vert, b = b_vert)
+      A_Z <- H %*% B_Z_red
+      b_Z <- H %*% d_Z
+      
+      # Binding constraints
+      
+      dof <- sum(abs(A_Z %*% qp$solution[1:nrow(sigma)] - b_Z) > tol)
+      cv_CC <- qchisq(1 - alpha, df = dof_n)
+      return(list(T_CC = T_CC, cv_CC = cv_CC, reject = (T_CC > cv_CC)))
   }
+}
 
 
-  stop("method must be one of ARP, CS, FSST, CR")
+stop("method must be one of ARP, CS, FSST, CR")
 
 }
 
@@ -457,14 +538,14 @@ construct_Aobs_Ashp_betashp <- function(yvec,
     A.shp[k, sum(par_lengths[1:4]) + k] <- 1
   }
 
-  if(inequalities_only == T){
+  if (inequalities_only == T) {
     #Remove both the extraneous thetas *and* kappa,zeta,eta
     A.shp <- A.shp[, -c(l_gt_k_inds, kappa_indices, eta_indices, zeta_indices)]
 
     #Add shape constraint that all parameters are >= 0 (this is not enforced by ARP)
     A.shp <- rbind(A.shp, diag(NCOL(A.shp)))
 
-  }else{
+  } else {
     #Remove the extraneous thetas only
     A.shp <- A.shp[, -l_gt_k_inds]
   }
@@ -577,13 +658,13 @@ get_beta.obs_fn <- function(yvec, dvec, mvec, inequalities_only,
 
   }
 
-  if(inequalities_only){
+  if (inequalities_only) {
     #Duplicate the first two sets of rows with opposite signs
     # to cast equalities as inequalities
     beta.obs <- c(p_m_d0, p_m_d1,
                   -p_m_d0, -p_m_d1,
                   p_ym_d1 - p_ym_d0)
-  }else{
+  } else {
     beta.obs <- c(p_m_d0, p_m_d1,
                   p_ym_d1 - p_ym_d0)
   }
