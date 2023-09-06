@@ -18,7 +18,8 @@ test_sharp_null(
   num_Ybins = NULL,
   alpha = 0.05,
   rearrange = FALSE,
-  eps_bar = 0.001
+  eps_bar = 0.001,
+  enumerate = FALSE
 )
 }
 \arguments{
@@ -47,9 +48,11 @@ support}
 
 \item{alpha}{Significance level. Default is 0.05}
 
-\item{rearrange}{Logical variable indicating whether to rearrange the conditional probabilities to obey monotonicity. Default is FALSE. If method = CR and to rearrange = FALSE, additional nuisance parameters are added to the inequalities involving P(M|D)}
+\item{rearrange}{Logical variable indicating whether to rearrange the conditional probabilities to obey monotonicity. De}
 
-\item{eps_bar}{Perturbation parameters used for method = "CR". Default value is 1e-03, following Cho and Russell (2023).}
+\item{eps_bar}{Cho and Russell (2023) truncation parameter}
+
+\item{enumerate}{Enumerate vertices for Cox and Shi (2023) implementataion?}
 }
 \description{
 This function tests the sharp null that Y(1,m) = Y(0,m). The

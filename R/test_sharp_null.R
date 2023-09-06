@@ -15,8 +15,9 @@
 #' @param hybrid_kappa The first-stage size value of the ARP hybrid test. If NULL, the ARP conditional (non-hybrid) test is used. Default is alpha/10
 #' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @param alpha Significance level. Default is 0.05
-#' @param rearrange Logical variable indicating whether to rearrange the conditional probabilities to obey monotonicity. Default is FALSE. If method = CR and to rearrange = FALSE, additional nuisance parameters are added to the inequalities involving P(M|D)
-#' @param eps_bar Perturbation parameters used for method = "CR". Default value is 1e-03, following Cho and Russell (2023).
+#' @param rearrange Logical variable indicating whether to rearrange the conditional probabilities to obey monotonicity. De
+#' @param eps_bar Cho and Russell (2023) truncation parameter
+#' @param enumerate Enumerate vertices for Cox and Shi (2023) implementataion?
 #' @export
 #'
 test_sharp_null <- function(df,
@@ -32,7 +33,8 @@ test_sharp_null <- function(df,
                             num_Ybins = NULL,
                             alpha = 0.05,
                             rearrange = FALSE,
-                            eps_bar = 1e-03){
+                            eps_bar = 1e-03,
+                            enumerate = FALSE){
 
   ## Process the inputted df ----
 
@@ -410,7 +412,7 @@ test_sharp_null <- function(df,
         # Adjust the linear programming parameters accordingly
         # We have B_Z_red %*% mu - C_Z delta <= d_Z, following CS notation
         B_Z_red <- B_Z %*% rem_red
-        d_Z <- B_Z %*% rem_red %*% beta.obs_red - B_Z %*% beta.obs 
+        d_Z <- B_Z_red %*% beta.obs_red - B_Z %*% beta.obs 
         sigma <- V_red
         sigmaInv <- solve(sigma)
       }
@@ -435,27 +437,87 @@ test_sharp_null <- function(df,
                                Amat = Amat,
                                bvec = - d_Z)
 
-      T_cc <- qp$value + t(beta.obs_red) %*% sigmaInv %*% beta.obs_red
+      beta.obs_red_star <- qp$solution[1:nrow(sigma)]
+      T_cc <- qp$value + t(beta.obs_red_star) %*% sigmaInv %*% beta.obs_red_star
 
       
       # Find the Degree of Freedom:
       tol <- 1e-8
 
+      if (enumerate) {
+        A_vert <- rbind(-diag(d_ineq),
+                        t(C_Z),
+                        -t(C_Z),
+                        rep(1, d_ineq),
+                        -rep(1, d_ineq))
+        b_vert <- c(numeric(d_ineq), 2 * numeric(d_nuis), 1, -1)
+        H <- vertexenum::enumerate.vertices(A = A_vert, b = b_vert)
+        A_Z <- H %*% B_Z_red
+        b_Z <- H %*% d_Z
+        
+        # Binding constraints
+        
+        dof_n <- sum(abs(A_Z %*% beta.obs_red_star - b_Z) > tol)
+      } else {
+        # Define A_ineq0 and b_ineq0
+        A_ineq0 <- -diag(d_ineq)
+        b_ineq0 <- matrix(0, nrow = d_ineq, ncol = 1)
+
+        # Define A_eq0, A_eq, and b_eq
+        # mstar = - d_Z + B_Z_red %*% beta.obs_red*
+        mstar <- - d_Z + B_Z_red %*% beta.obs_red_star 
+        A_eq0 <- rbind(t(C_Z), t(m_star), rep(1, d_ineq))
+        A_eq <- rbind(t(C_Z), rep(1, d_ineq))
+        b_eq <- c(rep(0, d_nuis), 1)
+
+        # Perform linear programming to find Vmu_min
+        library(lpSolve)
+        lp_options <- lpSolve::lp.control(display = "silent", simplex = "dual")
+        result <- lpSolve::lp("min", coef.obj = m_star, mat = A_ineq0, dir = rep(">=", d_ineq), rhs = b_ineq0, mat.fr = A_eq, rhs.fr = b_eq, control = lp_options)
+        Vmu_min <- result$objval
+        flag <- result$status
+
+        # Check conditions and calculate dof_n
+        if (Vmu_min >= 0.00005) {
+          dof_n <- 0
+        } else if (flag == -2) {
+          dof_n <- 0
+        } else {
+          # Initialize nb_ineq_min
+          nb_ineq_min <- rep(NA, length(b_ineq0))
+          counter <- 1
+
+          # Iterate through each j
+          for (bj in 1:d_ineq) {
+            # Find the largest b_j allowed
+            result_j <- lpSolve::lp("min", coef.obj = A_ineq0[bj,], mat = NULL, dir = NULL, rhs = NULL, mat.fr = A_eq0, rhs.fr = c(rep(0, d_nuis), Vmu_min, 1), control = lp_options)
+            
+            # Update nb_ineq_min
+            if (length(result_j$solution) == 0) {
+              nb_ineq_min[bj] <- b_ineq0[bj] - 1
+              counter <- counter + 1
+            } else {
+              nb_ineq_min[bj] <- result_j$objval
+            }
+          }
+
+          # Collect rows of A_ineq corresponding to implicit equalities
+          A_impeq <- A_ineq0[(b_ineq0 - nb_ineq_min) < tol, ]
+
+          # Combine A_impeq and A_eq0
+          A_full_eq <- rbind(A_impeq, A_eq0)
+
+          # Calculate rank of A_full_eq
+          rkA <- qr(A_full_eq)$rank
+
+          # Calculate dof_n
+          dof_n <- d_ineq - rkA + 1
+        }
+
+      }
       # Enumerating the vertices using (outdated) package vertexenum
       # Finds vertices for the polytope Ax <= b
-      A_vert <- rbind(-diag(d_ineq),
-                      t(C_Z),
-                      -t(C_Z),
-                      rep(1, d_ineq),
-                      -rep(1, d_ineq))
-      b_vert <- c(numeric(d_ineq), 2 * numeric(d_nuis), 1, -1)
-      H <- vertexenum::enumerate.vertices(A = A_vert, b = b_vert)
-      A_Z <- H %*% B_Z_red
-      b_Z <- H %*% d_Z
-      
-      # Binding constraints
-      
-      dof <- sum(abs(A_Z %*% qp$solution[1:nrow(sigma)] - b_Z) > tol)
+
       cv_CC <- qchisq(1 - alpha, df = dof_n)
       return(list(T_CC = T_CC, cv_CC = cv_CC, reject = (T_CC > cv_CC)))
   }
