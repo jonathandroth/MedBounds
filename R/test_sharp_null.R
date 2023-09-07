@@ -459,7 +459,7 @@ test_sharp_null <- function(df,
 
       
       # Find the Degree of Freedom:
-      tol <- 1e-8
+      tol <- 1e-10
 
       if (enumerate) {
         A_vert <- rbind(-diag(d_ineq),
@@ -478,7 +478,7 @@ test_sharp_null <- function(df,
       } else {
         # Define A_ineq0 and b_ineq0
         A_ineq0 <- diag(d_ineq)
-        b_ineq0 <- matrix(0, nrow = d_ineq, ncol = 1)
+        ## b_ineq0 <- matrix(0, nrow = d_ineq, ncol = 1)
 
         # Define A_eq0, A_eq, and b_eq
         # mstar = - d_Z + B_Z_red %*% beta.obs_red*
@@ -496,11 +496,12 @@ test_sharp_null <- function(df,
         ## flag <- result$status
 
         model <- list()
-        model$A <- rbind(A_ineq0, A_eq)
+        model$A <- A_eq
         model$obj <- mstar
         model$modelsense <- "min"
-        model$rhs <- c(b_ineq0, b_eq)
-        model$sense <- c(rep(">", d_ineq), rep("=", nrow(A_eq)))
+        model$rhs <- b_eq
+        model$sense <- rep("=", nrow(A_eq))
+        model$lb <- rep(0, d_ineq)
 
         result <- gurobi::gurobi(model)
 
@@ -515,20 +516,32 @@ test_sharp_null <- function(df,
           dof_n <- 0
         } else {
           # Initialize nb_ineq_min
-          nb_ineq_min <- rep(NA, length(b_ineq0))
+          nb_ineq_min <- rep(NA, d_ineq)
           counter <- 1
 
           # Iterate through each j
           for (bj in 1:d_ineq) {
             # Find the largest b_j allowed
-            result_j <- lpSolve::lp("min", A_ineq0[bj,],
-                                    rbind(A_eq0, diag(d_ineq), diag(d_ineq)),
-                                    c(rep("=", nrow(A_eq0)), rep(">=", d_ineq), rep("<=", d_ineq)),
-                                    c(rep(0, d_nuis), Vmu_min, 1, b_ineq0, b_ineq0 + 1))
+
+            ## result_j <- lpSolve::lp("min", A_ineq0[bj,],
+            ##                         rbind(A_eq0, diag(d_ineq), diag(d_ineq)),
+            ##                         c(rep("=", nrow(A_eq0)), rep(">=", d_ineq), rep("<=", d_ineq)),
+            ##                         c(rep(0, d_nuis), Vmu_min, 1, b_ineq0, b_ineq0 + 1))
+
+            model <- list()
+            model$A <- A_eq0
+            model$obj <- -A_ineq0[bj, ]
+            model$modelsense <- "min"
+            model$rhs <- c(rep(0, d_nuis), Vmu_min, 1)
+            model$sense <- rep("=", nrow(A_eq0))
+            model$lb <-  0
+            model$ub <- 1
             
+            result_j <- gurobi::gurobi(model)
             # Update nb_ineq_min
-            if (result_j$status == 2) {
-              nb_ineq_min[bj] <- b_ineq0[bj] - 1
+            ## if (result_j$status == 2) {# for lpSolve
+            if (result_j$status != "OPTIMAL") {
+              nb_ineq_min[bj] <- - 1
               counter <- counter + 1
             } else {
               nb_ineq_min[bj] <- result_j$objval
@@ -536,7 +549,7 @@ test_sharp_null <- function(df,
           }
 
           # Collect rows of A_ineq corresponding to implicit equalities
-          A_impeq <- A_ineq0[(b_ineq0 - nb_ineq_min) < tol, ]
+          A_impeq <- A_ineq0[(0 - nb_ineq_min) < tol, ]
 
           # Combine A_impeq and A_eq0
           A_full_eq <- rbind(A_impeq, A_eq0)
