@@ -477,7 +477,7 @@ test_sharp_null <- function(df,
         dof_n <- sum(abs(A_Z %*% beta.obs_red_star - b_Z) > tol)
       } else {
         # Define A_ineq0 and b_ineq0
-        A_ineq0 <- -diag(d_ineq)
+        A_ineq0 <- diag(d_ineq)
         b_ineq0 <- matrix(0, nrow = d_ineq, ncol = 1)
 
         # Define A_eq0, A_eq, and b_eq
@@ -489,16 +489,29 @@ test_sharp_null <- function(df,
 
         # Perform linear programming to find Vmu_min
         ## lp_options <- lpSolve::lp.control(display = "silent", simplex = "dual")
-        result <- lpSolve::lp("min", mstar, rbind(A_ineq0, A_eq),
-                              c(rep(">=", d_ineq), rep("=", nrow(A_eq))),
-                              c(b_ineq0, b_eq))
+        ## result <- lpSolve::lp("min", mstar, rbind(A_ineq0, A_eq),
+        ##                       c(rep(">=", d_ineq), rep("=", nrow(A_eq))),
+        ##                       c(b_ineq0, b_eq))
+        ## Vmu_min <- result$objval
+        ## flag <- result$status
+
+        model <- list()
+        model$A <- rbind(A_ineq0, A_eq)
+        model$obj <- mstar
+        model$modelsense <- "min"
+        model$rhs <- c(b_ineq0, b_eq)
+        model$sense <- c(rep(">", d_ineq), rep("=", nrow(A_eq)))
+
+        result <- gurobi::gurobi(model)
+
         Vmu_min <- result$objval
         flag <- result$status
 
         # Check conditions and calculate dof_n
-        if (Vmu_min >= 0.00005) {
+        if (flag != "OPTIMAL") {
           dof_n <- 0
-        } else if (flag == 2) {
+          ## } else if (flag == 2) { ## for lpSolve
+        } else if (Vmu_min >= 0.00005) {
           dof_n <- 0
         } else {
           # Initialize nb_ineq_min
