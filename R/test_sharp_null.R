@@ -380,12 +380,15 @@ test_sharp_null <- function(df,
 
     if(method == "CS"){
       
+      sigma <- sigma.obs
+      
       ## Convert in C * delta <= m for to make use of the replication package
       C_Z <- A
-      B_Z <- rbind(diag(length(beta.obs)), matrix(0, nrow = length(beta.shp), ncol = length(beta.shp)))
+      B_Z <- rbind(diag(length(beta.obs)),
+                   matrix(0, nrow = length(beta.shp), ncol = length(beta.obs)))
       d_Z <- 0
       
-      if(min(base::eigen(sigma, only.values = T)$values) < 10^-6){
+      if (min(base::eigen(sigma, only.values = T)$values) < 10^-6){
         #If sigma is not full-rank we extract the full rank component
 
         eigendecomp <- eigen(sigma)
@@ -415,6 +418,10 @@ test_sharp_null <- function(df,
         d_Z <- B_Z_red %*% beta.obs_red - B_Z %*% beta.obs 
         sigma <- V_red
         sigmaInv <- solve(sigma)
+      } else {
+        beta.obs_red <- beta.obs
+        B_Z_red <- B_Z
+        sigmaInv <- solve(sigma)
       }
       
       d_nuis <- ncol(A)  # number of nuisance parameters
@@ -427,18 +434,28 @@ test_sharp_null <- function(df,
 
       # Finding T (Test Statistic)
 
-      Amat <- - cbind(B_Z_red, - C_Z)
-      Dmat <- matrix(0, nrow = nrow(sigma) + d_nuis, ncol = nrow(sigma) + d_nuis)
+      # Amat x <= d_Z
+      Amat <- rbind(cbind(B_Z_red, - C_Z),
+                    cbind(matrix(0, nrow = d_nuis, ncol = ncol(B_Z_red)), diag(d_nuis)))
+      u <- c(d_Z, rep(1, d_nuis))
+      l <- c(rep(-Inf, length(d_Z)), rep(0, d_nuis))
+      Dmat <- matrix(0, nrow = (nrow(sigma) + d_nuis), ncol = (nrow(sigma) + d_nuis))
       Dmat[1:nrow(sigma), 1:nrow(sigma)] <- 2 * sigmaInv
-      dvec <- c(2 * sigmaInv %*% beta.obs_red, numeric(d_nuis))
+      dvec <- matrix(c(2 * sigmaInv %*% beta.obs_red, numeric(d_nuis)), ncol = 1)
 
-      qp <- quadprog::solve.QP(Dmat = Dmat,
-                               dvec = dvec,
-                               Amat = Amat,
-                               bvec = - d_Z)
+      qp <- osqp::solve_osqp(P = Dmat, q = -dvec, A = Amat, l = l, u = u, list(verbose = FALSE))
+      ## qp <- quadprog::solve.QP(Dmat = Dmat,
+      ##                          dvec = dvec,
+      ##                          Amat = Amat,
+      ##                          bvec = - d_Z)
 
-      beta.obs_red_star <- qp$solution[1:nrow(sigma)]
-      T_cc <- qp$value + t(beta.obs_red_star) %*% sigmaInv %*% beta.obs_red_star
+      
+
+      ## beta.obs_red_star <- qp$solution[1:nrow(sigma)]
+      beta.obs_red_star <- qp$x[1:nrow(sigma)]
+      T_CC <- t(beta.obs_red - beta.obs_red_star) %*%
+        sigmaInv %*%
+        (beta.obs_red - beta.obs_red_star)
 
       
       # Find the Degree of Freedom:
@@ -466,21 +483,22 @@ test_sharp_null <- function(df,
         # Define A_eq0, A_eq, and b_eq
         # mstar = - d_Z + B_Z_red %*% beta.obs_red*
         mstar <- - d_Z + B_Z_red %*% beta.obs_red_star 
-        A_eq0 <- rbind(t(C_Z), t(m_star), rep(1, d_ineq))
+        A_eq0 <- rbind(t(C_Z), t(mstar), rep(1, d_ineq))
         A_eq <- rbind(t(C_Z), rep(1, d_ineq))
         b_eq <- c(rep(0, d_nuis), 1)
 
         # Perform linear programming to find Vmu_min
-        library(lpSolve)
-        lp_options <- lpSolve::lp.control(display = "silent", simplex = "dual")
-        result <- lpSolve::lp("min", coef.obj = m_star, mat = A_ineq0, dir = rep(">=", d_ineq), rhs = b_ineq0, mat.fr = A_eq, rhs.fr = b_eq, control = lp_options)
+        ## lp_options <- lpSolve::lp.control(display = "silent", simplex = "dual")
+        result <- lpSolve::lp("min", mstar, rbind(A_ineq0, A_eq),
+                              c(rep(">=", d_ineq), rep("=", nrow(A_eq))),
+                              c(b_ineq0, b_eq))
         Vmu_min <- result$objval
         flag <- result$status
 
         # Check conditions and calculate dof_n
         if (Vmu_min >= 0.00005) {
           dof_n <- 0
-        } else if (flag == -2) {
+        } else if (flag == 2) {
           dof_n <- 0
         } else {
           # Initialize nb_ineq_min
@@ -490,10 +508,13 @@ test_sharp_null <- function(df,
           # Iterate through each j
           for (bj in 1:d_ineq) {
             # Find the largest b_j allowed
-            result_j <- lpSolve::lp("min", coef.obj = A_ineq0[bj,], mat = NULL, dir = NULL, rhs = NULL, mat.fr = A_eq0, rhs.fr = c(rep(0, d_nuis), Vmu_min, 1), control = lp_options)
+            result_j <- lpSolve::lp("min", A_ineq0[bj,],
+                                    rbind(A_eq0, diag(d_ineq), diag(d_ineq)),
+                                    c(rep("=", nrow(A_eq0)), rep(">=", d_ineq), rep("<=", d_ineq)),
+                                    c(rep(0, d_nuis), Vmu_min, 1, b_ineq0, b_ineq0 + 1))
             
             # Update nb_ineq_min
-            if (length(result_j$solution) == 0) {
+            if (result_j$status == 2) {
               nb_ineq_min[bj] <- b_ineq0[bj] - 1
               counter <- counter + 1
             } else {
@@ -519,7 +540,7 @@ test_sharp_null <- function(df,
       # Finds vertices for the polytope Ax <= b
 
       cv_CC <- qchisq(1 - alpha, df = dof_n)
-      return(list(T_CC = T_CC, cv_CC = cv_CC, reject = (T_CC > cv_CC)))
+      return(list(T_CC = T_CC, cv_CC = cv_CC, df = dof_n, reject = (T_CC > cv_CC)))
   }
 }
 

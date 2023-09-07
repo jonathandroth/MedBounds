@@ -1,4 +1,4 @@
-#' @description Function for discretizing yvec.
+#' @title Function for discretizing yvec.
 #' @param yvec A vector containing y values (assumed non-missing)
 #' @param numBins The target number of bins into which to discretize y
 #' @returns A discretized version of yvec. If yvec has fewer than numBins unique

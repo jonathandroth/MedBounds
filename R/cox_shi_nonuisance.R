@@ -1,6 +1,7 @@
-#' @description Run the Cox and Shi test for the null E[Y] <= 0 for Y~N(mu,Sigma)
-#'
-#'
+#' @title Run the Cox and Shi test for the null E[Y] <= 0 for Y~N(mu,Sigma)
+#' @param Y 
+#' @param sigma 
+#' @param alpha 
 cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05){
 
   if(min(base::eigen(sigma, only.values = T)$values) < 10^-6){

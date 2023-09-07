@@ -1,4 +1,4 @@
-#' @description This function processes the inputted dataframe to remove missing values
+#' @title This function processes the inputted dataframe to remove missing values
 #' @param df A data.frame
 #' @param d Name of the treatment variable in the df
 #' @param m Name of the mediator variable
