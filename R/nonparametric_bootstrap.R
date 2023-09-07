@@ -16,7 +16,8 @@ compute_bootstrap_draws <- function(f, df, d, m, y, numdraws = 100){
 compute_bootstrap_draws_clustered <- function(f, df, d, m, y,
                                               cluster = NULL,
                                               numdraws = 100,
-                                              return_df = T){
+                                              return_df = T,
+                                              fix_n1 = T){
   n <- NROW(df)
 
   if(is.null(cluster)){
@@ -30,12 +31,25 @@ compute_bootstrap_draws_clustered <- function(f, df, d, m, y,
     df$cluster <- df[[cluster]]
   }
 
-
+  #Compute the number of treated and control clusters
+  # If fix_n1, then this is treated as fixed and we bootstrap separately from each
+  treated_clusters <- unique(df$cluster[df[[d]] == 1] )
+  untreated_clusters <- unique(df$cluster[df[[d]] == 0] )
+  ncluster_1 <- length(treated_clusters)
+  ncluster_0 <- length(untreated_clusters)
 
   bootstrap_oneseed <- function(seed){
     set.seed(seed)
-    bs_clusters <- sample(x=uniqueClusters,size=ncluster,replace = TRUE)
 
+    if(!fix_n1){
+      #If we don't fix n1, we just draw a bootstrap sample of clusters
+      bs_clusters <- sample(x=uniqueClusters,size=ncluster,replace = TRUE)
+    }else{
+      #If we fix n1, we draw a bootstrap sample of clusters for treated/control, then combine
+      bs_clusters1 <- sample(x=treated_clusters,size=ncluster_1,replace = TRUE)
+      bs_clusters0 <- sample(x=untreated_clusters,size=ncluster_0,replace = TRUE)
+      bs_clusters <- c(bs_clusters0, bs_clusters1)
+    }
     bs_cluster_df <- data.frame(blah = 1:ncluster)
     bs_cluster_df[[cluster]] <- bs_clusters
     bs_cluster_df$blah <- NULL

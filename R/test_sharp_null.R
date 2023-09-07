@@ -18,6 +18,7 @@
 #' @param rearrange Logical variable indicating whether to rearrange the conditional probabilities to obey monotonicity. De
 #' @param eps_bar Cho and Russell (2023) truncation parameter
 #' @param enumerate Enumerate vertices for Cox and Shi (2023) implementataion?
+#' @param fix_n1 Whether the number of treated units (or clusters) should be fixed in the bootstrap
 #' @export
 #'
 test_sharp_null <- function(df,
@@ -34,7 +35,8 @@ test_sharp_null <- function(df,
                             alpha = 0.05,
                             rearrange = FALSE,
                             eps_bar = 1e-03,
-                            enumerate = FALSE){
+                            enumerate = FALSE,
+                            fix_n1 = TRUE){
 
   ## Process the inputted df ----
 
@@ -137,7 +139,8 @@ test_sharp_null <- function(df,
     y = y,
     cluster = cluster,
     numdraws = B,
-    return_df = F)
+    return_df = F,
+    fix_n1 = fix_n1)
 
   ## Pass to the relevant moment inequality procedure ----
 
@@ -350,7 +353,7 @@ test_sharp_null <- function(df,
                               ncol = NROW(sigma),
                               nrow = NROW(sigma))
       }
-      
+
       if (is.null(hybrid_kappa)) {
       arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
                                                  y_T = beta,
@@ -379,15 +382,15 @@ test_sharp_null <- function(df,
     }
 
     if(method == "CS"){
-      
+
       sigma <- sigma.obs
-      
+
       ## Convert in C * delta <= m for to make use of the replication package
       C_Z <- A
       B_Z <- rbind(diag(length(beta.obs)),
                    matrix(0, nrow = length(beta.shp), ncol = length(beta.obs)))
       d_Z <- 0
-      
+
       if (min(base::eigen(sigma, only.values = T)$values) < 10^-6){
         #If sigma is not full-rank we extract the full rank component
 
@@ -406,7 +409,7 @@ test_sharp_null <- function(df,
         if (length(positive_indices) == 1) { rem_red <- t(rem_red) }
 
         rem_red <- eigenvecs %*% t(rem_red)
-        
+
         beta.obs_red <- t(rem_red) %*% beta.obs
         V_red <- diag( x = eigenvals[positive_indices],
                         nrow = length(eigenvals[positive_indices]))
@@ -415,7 +418,7 @@ test_sharp_null <- function(df,
         # Adjust the linear programming parameters accordingly
         # We have B_Z_red %*% mu - C_Z delta <= d_Z, following CS notation
         B_Z_red <- B_Z %*% rem_red
-        d_Z <- B_Z_red %*% beta.obs_red - B_Z %*% beta.obs 
+        d_Z <- B_Z_red %*% beta.obs_red - B_Z %*% beta.obs
         sigma <- V_red
         sigmaInv <- solve(sigma)
       } else {
@@ -423,12 +426,12 @@ test_sharp_null <- function(df,
         B_Z_red <- B_Z
         sigmaInv <- solve(sigma)
       }
-      
+
       d_nuis <- ncol(A)  # number of nuisance parameters
       d_ineq <- nrow(A)  # number of inequalities
 
       # Perform CC Test
-      
+
       #Convert beta.obs_red to a column vector if not already
       beta.obs_red <- as.matrix(beta.obs_red, ncol = length(beta.obs_red))
 
@@ -449,7 +452,7 @@ test_sharp_null <- function(df,
       ##                          Amat = Amat,
       ##                          bvec = - d_Z)
 
-      
+
 
       ## beta.obs_red_star <- qp$solution[1:nrow(sigma)]
       beta.obs_red_star <- qp$x[1:nrow(sigma)]
@@ -457,7 +460,7 @@ test_sharp_null <- function(df,
         sigmaInv %*%
         (beta.obs_red - beta.obs_red_star)
 
-      
+
       # Find the Degree of Freedom:
       tol <- 1e-10
 
@@ -471,9 +474,9 @@ test_sharp_null <- function(df,
         H <- vertexenum::enumerate.vertices(A = A_vert, b = b_vert)
         A_Z <- H %*% B_Z_red
         b_Z <- H %*% d_Z
-        
+
         # Binding constraints
-        
+
         dof_n <- sum(abs(A_Z %*% beta.obs_red_star - b_Z) > tol)
       } else {
         # Define A_ineq0 and b_ineq0
@@ -482,7 +485,7 @@ test_sharp_null <- function(df,
 
         # Define A_eq0, A_eq, and b_eq
         # mstar = - d_Z + B_Z_red %*% beta.obs_red*
-        mstar <- - d_Z + B_Z_red %*% beta.obs_red_star 
+        mstar <- - d_Z + B_Z_red %*% beta.obs_red_star
         A_eq0 <- rbind(t(C_Z), t(mstar), rep(1, d_ineq))
         A_eq <- rbind(t(C_Z), rep(1, d_ineq))
         b_eq <- c(rep(0, d_nuis), 1)
@@ -536,7 +539,7 @@ test_sharp_null <- function(df,
             model$sense <- rep("=", nrow(A_eq0))
             model$lb <-  0
             model$ub <- 1
-            
+
             result_j <- gurobi::gurobi(model)
             # Update nb_ineq_min
             ## if (result_j$status == 2) {# for lpSolve
