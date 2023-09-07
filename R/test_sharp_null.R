@@ -156,7 +156,13 @@ test_sharp_null <- function(df,
                                          beta.obs_list),
                             beta.shp = beta.shp)
 
-    fsst_result <- lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B,
+    if(is.null(cluster)){
+      n <- NROW(df)
+    }else{
+      n <- length(unique(df[[cluster]]))
+    }
+
+    fsst_result <- lpinfer::fsst(n = n, lpmodel = lpm, beta.tgt = 0, R = B,
                                  weight.matrix = weight.matrix)
 
     return(list(result = fsst_result, reject = (fsst_result$pval[1, 2] < alpha)))
