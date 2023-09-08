@@ -169,7 +169,7 @@ test_sharp_null <- function(df,
     if (lambda == "dd") {
       lambda <- NA
     } else if (lambda == "ndd") {
-      lambda <- 1/(log(max(length(beta.obs), exp(1))) * log(max(exp(1), log(max(exp(1), n)))))
+      lambda <- 1/sqrt(log(max(length(beta.obs), exp(1))) * log(max(exp(1), log(max(exp(1), n)))))
     }
     
     fsst_result <- lpinfer::fsst(n = n, lpmodel = lpm, beta.tgt = 0, R = B,
