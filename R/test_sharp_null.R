@@ -19,6 +19,8 @@
 #' @param eps_bar Cho and Russell (2023) truncation parameter
 #' @param enumerate Enumerate vertices for Cox and Shi (2023) implementataion?
 #' @param fix_n1 Whether the number of treated units (or clusters) should be fixed in the bootstrap
+#' @param lambda Lambda value for FSST. Default is NA, in which case "data-driven" lambda is used.
+#' @param use_nc If the data is clustered, should FSST use the number of clusters for determining lambda (versus total observations). Default is false.
 #' @export
 #'
 test_sharp_null <- function(df,
@@ -36,7 +38,9 @@ test_sharp_null <- function(df,
                             rearrange = FALSE,
                             eps_bar = 1e-03,
                             enumerate = FALSE,
-                            fix_n1 = TRUE){
+                            fix_n1 = TRUE,
+                            lambda = NA,
+                            use_nc = FALSE){
 
   ## Process the inputted df ----
 
@@ -156,14 +160,14 @@ test_sharp_null <- function(df,
                                          beta.obs_list),
                             beta.shp = beta.shp)
 
-    if(is.null(cluster)){
+    if(is.null(cluster) | use_nc == FALSE){
       n <- NROW(df)
     }else{
       n <- length(unique(df[[cluster]]))
     }
 
     fsst_result <- lpinfer::fsst(n = n, lpmodel = lpm, beta.tgt = 0, R = B,
-                                 weight.matrix = weight.matrix)
+                                 weight.matrix = weight.matrix, lambda = lambda)
 
     return(list(result = fsst_result, reject = (fsst_result$pval[1, 2] < alpha)))
   }
