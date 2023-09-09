@@ -31,7 +31,8 @@ cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05){
 
     #Find constant difference between Y and A Xstar
     #This becomes the constant in your constraints, i.e. A mu <= b
-    b <- A %*% Xstar - Y
+    b <- A %*% Xstar - Y 
+
     Y <- Xstar
     sigma <- V_Xstar
   } else {

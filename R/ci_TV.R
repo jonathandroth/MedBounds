@@ -22,7 +22,7 @@
 #'   search
 #' @param verbose Prints test results for each null value if verbose = TRUE
 #' @param eps Tolerance level for the bisection method (in terms of the
-#'   p-value), default is 10% of the significance level alpha
+#'   p-value), default is 10\% of the significance level alpha
 #' @export
 ci_TV <- function(df,
                   d,

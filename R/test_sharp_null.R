@@ -352,15 +352,14 @@ test_sharp_null <- function(df,
     beta <- c(beta.obs, beta.shp)
     A <- rbind(A.obs, A.shp)
 
+    #Update the covariance matrix to have zero in blocks for the shape constraints
+    sigma <- rbind(cbind(sigma.obs, matrix(0,
+                                           nrow = NROW(sigma.obs),
+                                           ncol = NROW(A.shp) ) ),
+                   matrix(0, nrow = NROW(A.shp), ncol = NCOL(sigma.obs) + NROW(A.shp) ))
 
     #Run the relevant test
     if (method == "ARP" ) {
-
-      #Update the covariance matrix to have zero in blocks for the shape constraints
-      sigma <- rbind(cbind(sigma.obs, matrix(0,
-                                             nrow = NROW(sigma.obs),
-                                             ncol = NROW(A.shp) ) ),
-                     matrix(0, nrow = NROW(A.shp), ncol = NCOL(sigma.obs) + NROW(A.shp) ))
 
       #Test if sigma is numerically not psd. If so, add small amount of noise
       min_eig <- base::min(base::eigen(sigma, only.values = TRUE)$values)
@@ -399,42 +398,37 @@ test_sharp_null <- function(df,
 
     if(method == "CS"){
 
-      sigma <- sigma.obs
+      # We have beta - C_Z delta <= d_Z
+      # C_Z = A; d_Z = 0
+      # We want to define B_Z and m so that var(m) has full rank
+      # This can be done by taking the rows corresponing to postive eigenvals
 
-      ## Convert in C * delta <= m for to make use of the replication package
+      ## Later, convert in C * delta <= m for to make use of the replication package
       C_Z <- A
-      B_Z <- rbind(diag(length(beta.obs)),
-                   matrix(0, nrow = length(beta.shp), ncol = length(beta.obs)))
       d_Z <- 0
 
-      if (min(base::eigen(sigma, only.values = T)$values) < 10^-6){
+
+      if (min(base::eigen(sigma, only.values = T)$values) < 1e-08){
+
         #If sigma is not full-rank we extract the full rank component
+        eigenvecs <- eigen(sigma)$vectors
+        eigenvals <- eigen(sigma)$values
 
-        eigendecomp <- eigen(sigma)
-        eigenvals <- eigendecomp$values
-        eigenvecs <- eigendecomp$vectors
-
-        tol <- 10^-6
+        tol <- 1e-16
         positive_indices <- which(eigenvals > tol)
+        qr(sigma)$rank
+        
+        B_Z <- eigenvecs[,positive_indices, drop = FALSE]
 
-        #Create a matrix that selects rows with positive indices
-        rem_red <- diag(length(eigenvals))
-        rem_red <- as.matrix(rem_red[positive_indices,])
-
-        #Deal with annoying fact that R converts to column vector if length 1
-        if (length(positive_indices) == 1) { rem_red <- t(rem_red) }
-
-        rem_red <- eigenvecs %*% t(rem_red)
-
-        beta.obs_red <- t(rem_red) %*% beta.obs
-        V_red <- diag( x = eigenvals[positive_indices],
-                        nrow = length(eigenvals[positive_indices]))
-
+        # Get  "reduced" beta
+        # By constuction, B %*% t(B_Z) %*% beta - beta = constant
+        beta_red <- t(B_Z) %*% beta
+        
+        V_red <- diag(eigenvals[positive_indices]) # variance of reduced beta
 
         # Adjust the linear programming parameters accordingly
-        # We have B_Z_red %*% mu - C_Z delta <= d_Z, following CS notation
-        B_Z_red <- B_Z %*% rem_red
-        d_Z <- B_Z_red %*% beta.obs_red - B_Z %*% beta.obs
+        # We have B_Z %*% beta.red - C_Z delta <= d_Z + B_Z %*% beta.red - beta, following CS notation
+        d_Z <- d_Z + B_Z %*% beta_red - beta
         sigma <- V_red
         sigmaInv <- solve(sigma)
       } else {
@@ -447,20 +441,16 @@ test_sharp_null <- function(df,
       d_ineq <- nrow(A)  # number of inequalities
 
       # Perform CC Test
-
-      #Convert beta.obs_red to a column vector if not already
-      beta.obs_red <- as.matrix(beta.obs_red, ncol = length(beta.obs_red))
-
+      
       # Finding T (Test Statistic)
-
       # Amat x <= d_Z
-      Amat <- rbind(cbind(B_Z_red, - C_Z),
-                    cbind(matrix(0, nrow = d_nuis, ncol = ncol(B_Z_red)), diag(d_nuis)))
+      Amat <- rbind(cbind(B_Z, - C_Z),
+                    cbind(matrix(0, nrow = d_nuis, ncol = ncol(B_Z)), diag(d_nuis)))
       u <- c(d_Z, rep(1, d_nuis))
       l <- c(rep(-Inf, length(d_Z)), rep(0, d_nuis))
       Dmat <- matrix(0, nrow = (nrow(sigma) + d_nuis), ncol = (nrow(sigma) + d_nuis))
       Dmat[1:nrow(sigma), 1:nrow(sigma)] <- 2 * sigmaInv
-      dvec <- matrix(c(2 * sigmaInv %*% beta.obs_red, numeric(d_nuis)), ncol = 1)
+      dvec <- matrix(c(2 * sigmaInv %*% beta_red, numeric(d_nuis)), ncol = 1)
 
       qp <- osqp::solve_osqp(P = Dmat, q = -dvec, A = Amat, l = l, u = u, list(verbose = FALSE))
       ## qp <- quadprog::solve.QP(Dmat = Dmat,
@@ -471,126 +461,159 @@ test_sharp_null <- function(df,
 
 
       ## beta.obs_red_star <- qp$solution[1:nrow(sigma)]
-      beta.obs_red_star <- qp$x[1:nrow(sigma)]
-      T_CC <- t(beta.obs_red - beta.obs_red_star) %*%
+      beta_red_star <- qp$x[1:nrow(sigma)]
+      T_CC <- t(beta_red - beta_red_star) %*%
         sigmaInv %*%
-        (beta.obs_red - beta.obs_red_star)
+        (beta_red - beta_red_star)
 
+      # Equivalent expression
+      ## T_CC <- qp$info$obj_val + t(beta_red) %*% sigmaInv %*% beta_red 
 
       # Find the Degree of Freedom:
-      tol <- 1e-10
+      tol <- 1e-6
 
-      if (enumerate) {
-        A_vert <- rbind(-diag(d_ineq),
-                        t(C_Z),
-                        -t(C_Z),
-                        rep(1, d_ineq),
-                        -rep(1, d_ineq))
-        b_vert <- c(numeric(d_ineq), 2 * numeric(d_nuis), 1, -1)
-        H <- vertexenum::enumerate.vertices(A = A_vert, b = b_vert)
-        A_Z <- H %*% B_Z_red
-        b_Z <- H %*% d_Z
+      ## if (enumerate) {
+      ##   A_vert <- rbind(-diag(d_ineq),
+      ##                   t(C_Z),
+      ##                   -t(C_Z),
+      ##                   rep(1, d_ineq),
+      ##                   -rep(1, d_ineq))
+      ##   b_vert <- c(numeric(d_ineq), 2 * numeric(d_nuis), 1, -1)
+      ##   H <- vertexenum::enumerate.vertices(A = A_vert, b = b_vert)
+      ##   A_Z <- H %*% B_Z_red
+      ##   b_Z <- H %*% d_Z
 
-        # Binding constraints
+      ##   # Binding constraints
 
-        dof_n <- sum(abs(A_Z %*% beta.obs_red_star - b_Z) > tol)
+      ##   dof_n <- sum(abs(A_Z %*% beta.obs_red_star - b_Z) > tol)
+      ## } else {
+      # Define A_ineq0 and b_ineq0
+      A_ineq0 <- - diag(d_ineq)
+      ## b_ineq0 <- matrix(0, nrow = d_ineq, ncol = 1)
+
+      # Define A_eq0, A_eq, and b_eq
+      # mstar = - d_Z + B_Z %*% beta_red*
+      mstar <- d_Z - B_Z %*% beta_red_star
+      A_eq0 <- rbind(-t(C_Z), t(mstar), rep(1, d_ineq))
+      A_eq <- rbind(-t(C_Z), rep(1, d_ineq))
+      b_eq <- c(rep(0, d_nuis), 1)
+
+      # Perform linear programming to find Vmu_min
+      ## lp_options <- lpSolve::lp.control(display = "silent", simplex = "dual")
+      ## result <- lpSolve::lp("min", mstar, rbind(A_ineq0, A_eq),
+      ##                       c(rep(">=", d_ineq), rep("=", nrow(A_eq))),
+      ##                       c(b_ineq0, b_eq))
+      ## Vmu_min <- result$objval
+      ## flag <- result$status
+
+      model <- list()
+      model$A <- A_eq
+      model$obj <- mstar
+      model$modelsense <- "min"
+      model$rhs <- b_eq
+      model$sense <- rep("=", nrow(A_eq))
+      model$lb <- rep(0, d_ineq)
+
+      params <- list(OutputFlag=0)
+      result <- gurobi::gurobi(model, params)
+
+      Vmu_min <- result$objval
+      flag <- result$status
+
+      # Check conditions and calculate dof_n
+      if (flag != "OPTIMAL") {
+        dof_n <- 0
+        ## } else if (flag == 2) { ## for lpSolve
+      } else if (Vmu_min >= 0.00005) {
+        dof_n <- 0
       } else {
-        # Define A_ineq0 and b_ineq0
-        A_ineq0 <- diag(d_ineq)
-        ## b_ineq0 <- matrix(0, nrow = d_ineq, ncol = 1)
+        # Initialize nb_ineq_min
+        nb_ineq_min <- rep(NA, d_ineq)
+        counter <- 1
 
-        # Define A_eq0, A_eq, and b_eq
-        # mstar = - d_Z + B_Z_red %*% beta.obs_red*
-        mstar <- - d_Z + B_Z_red %*% beta.obs_red_star
-        A_eq0 <- rbind(t(C_Z), t(mstar), rep(1, d_ineq))
-        A_eq <- rbind(t(C_Z), rep(1, d_ineq))
-        b_eq <- c(rep(0, d_nuis), 1)
+        # Iterate through each j
+        for (bj in 1:d_ineq) {
+          # Find the largest b_j allowed
 
-        # Perform linear programming to find Vmu_min
-        ## lp_options <- lpSolve::lp.control(display = "silent", simplex = "dual")
-        ## result <- lpSolve::lp("min", mstar, rbind(A_ineq0, A_eq),
-        ##                       c(rep(">=", d_ineq), rep("=", nrow(A_eq))),
-        ##                       c(b_ineq0, b_eq))
-        ## Vmu_min <- result$objval
-        ## flag <- result$status
+          ## result_j <- lpSolve::lp("min", A_ineq0[bj,],
+          ##                         rbind(A_eq0, diag(d_ineq), diag(d_ineq)),
+          ##                         c(rep("=", nrow(A_eq0)), rep(">=", d_ineq), rep("<=", d_ineq)),
+          ##                         c(rep(0, d_nuis), Vmu_min, 1, b_ineq0, b_ineq0 + 1))
 
-        model <- list()
-        model$A <- A_eq
-        model$obj <- mstar
-        model$modelsense <- "min"
-        model$rhs <- b_eq
-        model$sense <- rep("=", nrow(A_eq))
-        model$lb <- rep(0, d_ineq)
+          model <- list()
+          model$A <- A_eq0
+          model$obj <- A_ineq0[bj, ]
+          model$modelsense <- "min"
+          model$rhs <- c(rep(0, d_nuis), Vmu_min, 1)
+          model$sense <- rep("=", nrow(A_eq0))
+          model$lb <-  0
+          model$ub <- 1
 
-        result <- gurobi::gurobi(model)
-
-        Vmu_min <- result$objval
-        flag <- result$status
-
-        # Check conditions and calculate dof_n
-        if (flag != "OPTIMAL") {
-          dof_n <- 0
-          ## } else if (flag == 2) { ## for lpSolve
-        } else if (Vmu_min >= 0.00005) {
-          dof_n <- 0
-        } else {
-          # Initialize nb_ineq_min
-          nb_ineq_min <- rep(NA, d_ineq)
-          counter <- 1
-
-          # Iterate through each j
-          for (bj in 1:d_ineq) {
-            # Find the largest b_j allowed
-
-            ## result_j <- lpSolve::lp("min", A_ineq0[bj,],
-            ##                         rbind(A_eq0, diag(d_ineq), diag(d_ineq)),
-            ##                         c(rep("=", nrow(A_eq0)), rep(">=", d_ineq), rep("<=", d_ineq)),
-            ##                         c(rep(0, d_nuis), Vmu_min, 1, b_ineq0, b_ineq0 + 1))
-
-            model <- list()
-            model$A <- A_eq0
-            model$obj <- -A_ineq0[bj, ]
-            model$modelsense <- "min"
-            model$rhs <- c(rep(0, d_nuis), Vmu_min, 1)
-            model$sense <- rep("=", nrow(A_eq0))
-            model$lb <-  0
-            model$ub <- 1
-
-            result_j <- gurobi::gurobi(model)
-            # Update nb_ineq_min
-            ## if (result_j$status == 2) {# for lpSolve
-            if (result_j$status != "OPTIMAL") {
-              nb_ineq_min[bj] <- - 1
-              counter <- counter + 1
-            } else {
-              nb_ineq_min[bj] <- result_j$objval
-            }
+          result_j <- gurobi::gurobi(model, params)
+          # Update nb_ineq_min
+          ## if (result_j$status == 2) {# for lpSolve
+          if (result_j$status != "OPTIMAL") {
+            nb_ineq_min[bj] <- - 1
+            counter <- counter + 1
+          } else {
+            nb_ineq_min[bj] <- result_j$objval
           }
+        }
 
-          # Collect rows of A_ineq corresponding to implicit equalities
-          A_impeq <- A_ineq0[(0 - nb_ineq_min) < tol, ]
+        # Collect rows of A_ineq corresponding to implicit equalities
+        A_impeq <- A_ineq0[(0 - nb_ineq_min) < tol, ]
 
+        if (qr(B_Z)$rank == d_ineq) {
+          
           # Combine A_impeq and A_eq0
-          A_full_eq <- rbind(A_impeq, A_eq0)
+          A_full_eq <- rbind(A_impeq, A_eq0[-nrow(A_eq0),])
 
           # Calculate rank of A_full_eq
           rkA <- qr(A_full_eq)$rank
 
           # Calculate dof_n
-          dof_n <- d_ineq - rkA + 1
-        }
+          dof_n <- d_ineq - rkA
+          
+        } else if (qr(B_Z)$rank < d_ineq) {
+         
+          G <- cbind(t(A_impeq), C_Z, mstar)
+          qr_tG <- qr(t(G))
+          rank_G <- qr_tG$rank
+          
+          if (rank_G == nrow(G)) {
+            
+            dof_n <- 0
+            
+          } else {
+            
+            G1_ind <- qr_tG$pivot[1:rank_G]
+            G2_ind <- setdiff(1:nrow(G), G1_ind)
 
+            G1 <- G[G1_ind,]
+            G2 <- G[G2_ind,]
+            
+            B_Z1 <- B_Z[, G1_ind]
+            B_Z2 <- B_Z[, G2_ind]
+
+            Gamma <- - solve(G1 %*% t(G1)) %*% G1 %*% t(G2)
+            dof_n <- qr(t(Gamma) %*% B_Z1 + B_Z2)$rank
+            
+          }
+        }
+        
       }
+
+      ## }
       # Enumerating the vertices using (outdated) package vertexenum
       # Finds vertices for the polytope Ax <= b
 
       cv_CC <- qchisq(1 - alpha, df = dof_n)
       return(list(T_CC = T_CC, cv_CC = cv_CC, df = dof_n, reject = (T_CC > cv_CC)))
+    }
   }
-}
 
 
-stop("method must be one of ARP, CS, FSST, CR")
+  stop("method must be one of ARP, CS, FSST, CR")
 
 }
 
@@ -799,3 +822,4 @@ get_beta.obs_fn <- function(yvec, dvec, mvec, inequalities_only,
 
   return(beta.obs)
 }
+

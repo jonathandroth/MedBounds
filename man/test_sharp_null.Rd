@@ -19,7 +19,10 @@ test_sharp_null(
   alpha = 0.05,
   rearrange = FALSE,
   eps_bar = 0.001,
-  enumerate = FALSE
+  enumerate = FALSE,
+  fix_n1 = TRUE,
+  lambda = "dd",
+  use_nc = FALSE
 )
 }
 \arguments{
@@ -53,6 +56,12 @@ support}
 \item{eps_bar}{Cho and Russell (2023) truncation parameter}
 
 \item{enumerate}{Enumerate vertices for Cox and Shi (2023) implementataion?}
+
+\item{fix_n1}{Whether the number of treated units (or clusters) should be fixed in the bootstrap}
+
+\item{lambda}{Lambda value for FSST. Default is "dd" in which case the "data-driven" lambda recommended by FSST is used. If lambda = "ndd", the non data-driven recommendation is used. See Remark 4.2 of FSST.}
+
+\item{use_nc}{If the data is clustered, should FSST use the number of clusters for determining lambda (versus total observations). Default is false.}
 }
 \description{
 This function tests the sharp null that Y(1,m) = Y(0,m). The
