@@ -418,10 +418,10 @@ test_sharp_null <- function(df,
         positive_indices <- which(eigenvals > tol)
         qr(sigma)$rank
         
-        B_Z <- eigenvecs[,positive_indices, drop = FALSE]
+        B_Z <- eigenvecs[,positive_indices, drop = FALSE] 
 
         # Get  "reduced" beta
-        # By constuction, B %*% t(B_Z) %*% beta - beta = constant
+        # By constuction, B_Z %*% t(B_Z) %*% beta - beta = constant
         beta_red <- t(B_Z) %*% beta
         
         V_red <- diag(eigenvals[positive_indices]) # variance of reduced beta
@@ -432,8 +432,8 @@ test_sharp_null <- function(df,
         sigma <- V_red
         sigmaInv <- solve(sigma)
       } else {
-        beta.obs_red <- beta.obs
-        B_Z_red <- B_Z
+        beta_red <- beta.obs
+        B_Z_red <- diag(lengt(beta.obs))
         sigmaInv <- solve(sigma)
       }
 
@@ -589,11 +589,11 @@ test_sharp_null <- function(df,
             G1_ind <- qr_tG$pivot[1:rank_G]
             G2_ind <- setdiff(1:nrow(G), G1_ind)
 
-            G1 <- G[G1_ind,]
-            G2 <- G[G2_ind,]
+            G1 <- G[G1_ind, , drop = FALSE]
+            G2 <- G[G2_ind, , drop = FALSE]
             
-            B_Z1 <- B_Z[, G1_ind]
-            B_Z2 <- B_Z[, G2_ind]
+            B_Z1 <- B_Z[G1_ind, , drop = FALSE]
+            B_Z2 <- B_Z[G2_ind, , drop = FALSE]
 
             Gamma <- - solve(G1 %*% t(G1)) %*% G1 %*% t(G2)
             dof_n <- qr(t(Gamma) %*% B_Z1 + B_Z2)$rank
