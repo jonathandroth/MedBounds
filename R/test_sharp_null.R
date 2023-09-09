@@ -488,15 +488,41 @@ test_sharp_null <- function(df,
       ##   dof_n <- sum(abs(A_Z %*% beta.obs_red_star - b_Z) > tol)
       ## } else {
       # Define A_ineq0 and b_ineq0
-      A_ineq0 <- - diag(d_ineq)
+      ## A_ineq0 <- - diag(d_ineq)
+      I_d_ineq <- diag(d_ineq)
       ## b_ineq0 <- matrix(0, nrow = d_ineq, ncol = 1)
 
+      ## Finding I_J0 as in Section A.3.1 of Cox and Shi (2023)
+
+      psis <- rep(NA, d_ineq)
+
+      for (j in 1:d_ineq) {
+
+        model <- list()
+        model$A <- rbind(t(C_Z), t(B_Z %*% beta_red_star - d_Z), rep(1, d_ineq))
+        model$obj <- -I_d_ineq[j, ]
+        model$modelsense <- "min"
+        model$rhs <- c(rep(0, nrow(model$A) - 1), 1)
+        model$sense <- rep("=", nrow(model$A))
+        model$lb <- rep(0, d_ineq)
+
+        params <- list(OutputFlag=0)
+        result <- gurobi::gurobi(model, params)
+
+        psis[j] <- result$objval
+        
+        if (result$status != "OPTIMAL") {
+          psis[j] <- -1
+        }
+        
+      }
+      
       # Define A_eq0, A_eq, and b_eq
       # mstar = - d_Z + B_Z %*% beta_red*
-      mstar <- d_Z - B_Z %*% beta_red_star
-      A_eq0 <- rbind(-t(C_Z), t(mstar), rep(1, d_ineq))
-      A_eq <- rbind(-t(C_Z), rep(1, d_ineq))
-      b_eq <- c(rep(0, d_nuis), 1)
+      ## mstar <- d_Z - B_Z %*% beta_red_star
+      ## A_eq0 <- rbind(-t(C_Z), t(mstar), rep(1, d_ineq))
+      ## A_eq <- rbind(-t(C_Z), rep(1, d_ineq))
+      ## b_eq <- c(rep(0, d_nuis), 1)
 
       # Perform linear programming to find Vmu_min
       ## lp_options <- lpSolve::lp.control(display = "silent", simplex = "dual")
@@ -506,67 +532,69 @@ test_sharp_null <- function(df,
       ## Vmu_min <- result$objval
       ## flag <- result$status
 
-      model <- list()
-      model$A <- A_eq
-      model$obj <- mstar
-      model$modelsense <- "min"
-      model$rhs <- b_eq
-      model$sense <- rep("=", nrow(A_eq))
-      model$lb <- rep(0, d_ineq)
+      ## model <- list()
+      ## model$A <- A_eq
+      ## model$obj <- mstar
+      ## model$modelsense <- "min"
+      ## model$rhs <- b_eq
+      ## model$sense <- rep("=", nrow(A_eq))
+      ## model$lb <- rep(0, d_ineq)
 
-      params <- list(OutputFlag=0)
-      result <- gurobi::gurobi(model, params)
+      ## params <- list(OutputFlag=0)
+      ## result <- gurobi::gurobi(model, params)
 
-      Vmu_min <- result$objval
-      flag <- result$status
+      ## Vmu_min <- result$objval
+      ## flag <- result$status
 
       # Check conditions and calculate dof_n
-      if (flag != "OPTIMAL") {
-        dof_n <- 0
-        ## } else if (flag == 2) { ## for lpSolve
-      } else if (Vmu_min >= 0.00005) {
-        dof_n <- 0
-      } else {
-        # Initialize nb_ineq_min
-        nb_ineq_min <- rep(NA, d_ineq)
-        counter <- 1
+      ## if (flag != "OPTIMAL") {
+      ##   dof_n <- 0
+      ##   ## } else if (flag == 2) { ## for lpSolve
+      ## } else if (Vmu_min >= 0.00005) {
+      ##   dof_n <- 0
+      ## } else {
+      ##   # Initialize nb_ineq_min
+      ##   nb_ineq_min <- rep(NA, d_ineq)
+      ##   counter <- 1
 
-        # Iterate through each j
-        for (bj in 1:d_ineq) {
-          # Find the largest b_j allowed
+      ##   # Iterate through each j
+      ##   for (bj in 1:d_ineq) {
+      ##     # Find the largest b_j allowed
 
-          ## result_j <- lpSolve::lp("min", A_ineq0[bj,],
-          ##                         rbind(A_eq0, diag(d_ineq), diag(d_ineq)),
-          ##                         c(rep("=", nrow(A_eq0)), rep(">=", d_ineq), rep("<=", d_ineq)),
-          ##                         c(rep(0, d_nuis), Vmu_min, 1, b_ineq0, b_ineq0 + 1))
+      ##     ## result_j <- lpSolve::lp("min", A_ineq0[bj,],
+      ##     ##                         rbind(A_eq0, diag(d_ineq), diag(d_ineq)),
+      ##     ##                         c(rep("=", nrow(A_eq0)), rep(">=", d_ineq), rep("<=", d_ineq)),
+      ##     ##                         c(rep(0, d_nuis), Vmu_min, 1, b_ineq0, b_ineq0 + 1))
 
-          model <- list()
-          model$A <- A_eq0
-          model$obj <- A_ineq0[bj, ]
-          model$modelsense <- "min"
-          model$rhs <- c(rep(0, d_nuis), Vmu_min, 1)
-          model$sense <- rep("=", nrow(A_eq0))
-          model$lb <-  0
-          model$ub <- 1
+      ##     model <- list()
+      ##     model$A <- A_eq0
+      ##     model$obj <- A_ineq0[bj, ]
+      ##     model$modelsense <- "min"
+      ##     model$rhs <- c(rep(0, d_nuis), Vmu_min, 1)
+      ##     model$sense <- rep("=", nrow(A_eq0))
+      ##     model$lb <-  0
+      ##     model$ub <- 1
 
-          result_j <- gurobi::gurobi(model, params)
-          # Update nb_ineq_min
-          ## if (result_j$status == 2) {# for lpSolve
-          if (result_j$status != "OPTIMAL") {
-            nb_ineq_min[bj] <- - 1
-            counter <- counter + 1
-          } else {
-            nb_ineq_min[bj] <- result_j$objval
-          }
-        }
+      ##     result_j <- gurobi::gurobi(model, params)
+      ##     # Update nb_ineq_min
+      ##     ## if (result_j$status == 2) {# for lpSolve
+      ##     if (result_j$status != "OPTIMAL") {
+      ##       nb_ineq_min[bj] <- - 1
+      ##       counter <- counter + 1
+      ##     } else {
+      ##       nb_ineq_min[bj] <- result_j$objval
+      ##     }
+      ##   }
 
         # Collect rows of A_ineq corresponding to implicit equalities
-        A_impeq <- A_ineq0[(0 - nb_ineq_min) < tol, ]
+      ## A_impeq <- A_ineq0[(0 - nb_ineq_min) < tol, ] 
 
+      A_impeq <- I_d_ineq[ (-psis) < tol, ]
+      
         if (qr(B_Z)$rank == d_ineq) {
           
           # Combine A_impeq and A_eq0
-          A_full_eq <- rbind(A_impeq, A_eq0[-nrow(A_eq0),])
+          A_full_eq <- rbind(A_impeq, rbind(-t(C_Z), t(B_Z %*% beta_red_star - d_Z)))
 
           # Calculate rank of A_full_eq
           rkA <- qr(A_full_eq)$rank
@@ -576,7 +604,7 @@ test_sharp_null <- function(df,
           
         } else if (qr(B_Z)$rank < d_ineq) {
          
-          G <- cbind(t(A_impeq), C_Z, mstar)
+          G <- cbind(t(A_impeq), C_Z, B_Z %*% beta_red_star - d_Z)
           qr_tG <- qr(t(G))
           rank_G <- qr_tG$rank
           
@@ -600,8 +628,6 @@ test_sharp_null <- function(df,
             
           }
         }
-        
-      }
 
       ## }
       # Enumerating the vertices using (outdated) package vertexenum
@@ -822,4 +848,3 @@ get_beta.obs_fn <- function(yvec, dvec, mvec, inequalities_only,
 
   return(beta.obs)
 }
-
