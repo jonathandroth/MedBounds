@@ -414,9 +414,9 @@ test_sharp_null <- function(df,
         eigenvecs <- eigen(sigma)$vectors
         eigenvals <- eigen(sigma)$values
 
-        tol <- 1e-16
+        tol <- 1e-08
         positive_indices <- which(eigenvals > tol)
-        qr(sigma)$rank
+        ## qr(sigma)$rank
         
         B_Z <- eigenvecs[,positive_indices, drop = FALSE] 
 
@@ -452,7 +452,13 @@ test_sharp_null <- function(df,
       Dmat[1:nrow(sigma), 1:nrow(sigma)] <- 2 * sigmaInv
       dvec <- matrix(c(2 * sigmaInv %*% beta_red, numeric(d_nuis)), ncol = 1)
 
-      qp <- osqp::solve_osqp(P = Dmat, q = -dvec, A = Amat, l = l, u = u, list(verbose = FALSE))
+
+      osqp_tol <- 1e-8 # important - smaller tol level don't work well
+      osqp_opts <- list(verbose = FALSE,
+                        eps_abs = osqp_tol,
+                        eps_rel = osqp_tol)
+      
+      qp <- osqp::solve_osqp(P = Dmat, q = -dvec, A = Amat, l = l, u = u, pars = osqp_opts)
       ## qp <- quadprog::solve.QP(Dmat = Dmat,
       ##                          dvec = dvec,
       ##                          Amat = Amat,
@@ -466,11 +472,14 @@ test_sharp_null <- function(df,
         sigmaInv %*%
         (beta_red - beta_red_star)
 
+      ## Avoids some
+      beta_red_star[abs(beta_red_star) < osqp_tol] <- 0
+      
       # Equivalent expression
       ## T_CC <- qp$info$obj_val + t(beta_red) %*% sigmaInv %*% beta_red 
 
       # Find the Degree of Freedom:
-      tol <- 1e-6
+      ## tol <- 1e-6
 
       ## if (enumerate) {
       ##   A_vert <- rbind(-diag(d_ineq),
@@ -494,25 +503,60 @@ test_sharp_null <- function(df,
 
       ## Finding I_J0 as in Section A.3.1 of Cox and Shi (2023)
 
+      model <- list()
+      model$A <- rbind(t(C_Z),  rep(1, d_ineq))
+      model$obj <- d_Z - B_Z %*% beta_red_star
+      model$modelsense <- "min"
+      model$rhs <- c(rep(0, d_nuis), 1)
+      model$sense <- rep("=", nrow(model$A))
+      model$lb <- rep(0, d_ineq)
+
+      ## gurobi_tol <- 1e-7
+      ## params <- list(OutputFlag=0, OptimalityTol = gurobi_tol, FeasibilityTol = gurobi_tol)
+      ## result <- gurobi::gurobi(model, params)
+
+      result <- Rglpk::Rglpk_solve_LP(model$obj, model$A, rep("==", nrow(model$A)), model$rhs)
+      result$status <- ifelse(result$status == 0, "OPTIMAL", "ELSE")
+      result$objval <- result$optimum
+      
+      ## result$x
+      
+      V_min <- result$objval
+      flag <- result$status
+
+      if ((flag != "OPTIMAL") | (V_min >= 0.00005)) {
+
+        dof_n <- 0
+        cv_CC <- qchisq(1 - alpha, df = dof_n)
+       
+        return(list(T_CC = T_CC, cv_CC = cv_CC, df = dof_n, reject = (T_CC > cv_CC)))
+      }
+      
       psis <- rep(NA, d_ineq)
 
       for (j in 1:d_ineq) {
 
         model <- list()
-        model$A <- rbind(t(C_Z), t(B_Z %*% beta_red_star - d_Z), rep(1, d_ineq))
+        model$A <- rbind(t(C_Z), d_Z - B_Z %*% beta_red_star, rep(1, d_ineq))
         model$obj <- -I_d_ineq[j, ]
         model$modelsense <- "min"
-        model$rhs <- c(rep(0, nrow(model$A) - 1), 1)
+        model$rhs <- c(rep(0, d_nuis), V_min, 1)
+        ## model$rhs <- c(rep(0, d_nuis), 0, 1)
+        ## model$sense <- rep("=", nrow(model$A))
         model$sense <- rep("=", nrow(model$A))
         model$lb <- rep(0, d_ineq)
 
-        params <- list(OutputFlag=0)
-        result <- gurobi::gurobi(model, params)
-
-        psis[j] <- result$objval
+        result <- Rglpk::Rglpk_solve_LP(model$obj, model$A, rep("==", nrow(model$A)), model$rhs)
+        result$status <- ifelse(result$status == 0, "OPTIMAL", "ELSE")
+        result$objval <- result$optimum
+        
+        ## params <- list(OutputFlag=0)
+        ## result <- gurobi::gurobi(model, params)
         
         if (result$status != "OPTIMAL") {
           psis[j] <- -1
+        } else {
+          psis[j] <- result$objval
         }
         
       }
@@ -589,24 +633,35 @@ test_sharp_null <- function(df,
         # Collect rows of A_ineq corresponding to implicit equalities
       ## A_impeq <- A_ineq0[(0 - nb_ineq_min) < tol, ] 
 
-      A_impeq <- I_d_ineq[ (-psis) < tol, ]
+      psi_tol <- 1e-6
+      
+      A_impeq <- I_d_ineq[ (-psis) < psi_tol, , drop = FALSE]
+
+      A_full_eq <- rbind(A_impeq, -t(C_Z), t(B_Z %*% beta_red_star - d_Z))
+
+      # Calculate rank of A_full_eq
+      qr_tol <- 1e-5 # important; don't be too accurate
+      rkA <- qr(t(A_full_eq) %*% A_full_eq, tol = qr_tol)$rank
       
         if (qr(B_Z)$rank == d_ineq) {
           
           # Combine A_impeq and A_eq0
-          A_full_eq <- rbind(A_impeq, rbind(-t(C_Z), t(B_Z %*% beta_red_star - d_Z)))
+          ## A_full_eq <- rbind(A_impeq, rbind(-t(C_Z), t(B_Z %*% beta_red_star - d_Z)))
 
-          # Calculate rank of A_full_eq
-          rkA <- qr(A_full_eq)$rank
+          ## # Calculate rank of A_full_eq
+          ## rkA <- qr(A_full_eq)$rank
 
           # Calculate dof_n
           dof_n <- d_ineq - rkA
           
         } else if (qr(B_Z)$rank < d_ineq) {
          
-          G <- cbind(t(A_impeq), C_Z, B_Z %*% beta_red_star - d_Z)
-          qr_tG <- qr(t(G))
-          rank_G <- qr_tG$rank
+          ## G <- cbind(t(A_impeq), C_Z, B_Z %*% beta_red_star - d_Z)
+          ## qr_tG <- qr(t(G))
+          ## rank_G <- qr_tG$rank
+
+          G <- t(A_full_eq)
+          rank_G <- rkA
           
           if (rank_G == nrow(G)) {
             
@@ -614,7 +669,19 @@ test_sharp_null <- function(df,
             
           } else {
             
-            G1_ind <- qr_tG$pivot[1:rank_G]
+            ## G1_ind <- qr_tG$pivot[1:rank_G]
+            ## G2_ind <- setdiff(1:nrow(G), G1_ind)
+
+            ## G1 <- G[G1_ind, , drop = FALSE]
+            ## G2 <- G[G2_ind, , drop = FALSE]
+            
+            ## B_Z1 <- B_Z[G1_ind, , drop = FALSE]
+            ## B_Z2 <- B_Z[G2_ind, , drop = FALSE]
+
+            ## Gamma <- - solve(G1 %*% t(G1)) %*% G1 %*% t(G2)
+            ## dof_n <- qr(t(Gamma) %*% B_Z1 + B_Z2)$rank
+
+            G1_ind <- qr(t(G), tol = qr_tol)$pivot[1:rank_G]
             G2_ind <- setdiff(1:nrow(G), G1_ind)
 
             G1 <- G[G1_ind, , drop = FALSE]
@@ -623,8 +690,9 @@ test_sharp_null <- function(df,
             B_Z1 <- B_Z[G1_ind, , drop = FALSE]
             B_Z2 <- B_Z[G2_ind, , drop = FALSE]
 
-            Gamma <- - solve(G1 %*% t(G1)) %*% G1 %*% t(G2)
-            dof_n <- qr(t(Gamma) %*% B_Z1 + B_Z2)$rank
+            ## Gamma <- - solve(G1 %*% t(G1), tol = .Machine$double.eps^3) %*% G1 %*% t(G2)
+            Gamma <- - qr.coef(qr(t(G1), tol = qr_tol), t(G2))
+            dof_n <- qr(t(Gamma) %*% B_Z1 + B_Z2, tol = qr_tol)$rank
             
           }
         }
