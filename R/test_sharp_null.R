@@ -916,3 +916,15 @@ get_beta.obs_fn <- function(yvec, dvec, mvec, inequalities_only,
 
   return(beta.obs)
 }
+
+## Creates dummy variables for each (y, m) pair
+create_mydummy <- function(df, d, m, y, my_values) {
+
+  for (j in 1:nrow(my_values)) {
+    dummy_vec <- sapply(1:nrow(df), function(i) all(t(df[i, c(m, y)]) == my_values[j,2:1]))
+    df[[paste0(unlist(my_values[j,1:2]), collapse = "")]] <- dummy_vec
+  }
+
+  return(df)
+}
+
