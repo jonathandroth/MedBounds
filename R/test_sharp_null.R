@@ -537,7 +537,7 @@ test_sharp_null <- function(df,
       for (j in 1:d_ineq) {
 
         model <- list()
-        model$A <- rbind(t(C_Z), d_Z - B_Z %*% beta_red_star, rep(1, d_ineq))
+        model$A <- rbind(t(C_Z), t(d_Z - B_Z %*% beta_red_star), rep(1, d_ineq))
         model$obj <- -I_d_ineq[j, ]
         model$modelsense <- "min"
         model$rhs <- c(rep(0, d_nuis), V_min, 1)
