@@ -21,6 +21,7 @@
 #' @param fix_n1 Whether the number of treated units (or clusters) should be fixed in the bootstrap
 #' @param lambda Lambda value for FSST. Default is "dd" in which case the "data-driven" lambda recommended by FSST is used. If lambda = "ndd", the non data-driven recommendation is used. See Remark 4.2 of FSST.
 #' @param use_nc If the data is clustered, should FSST use the number of clusters for determining lambda (versus total observations). Default is false.
+#' @param analytic_variance If TRUE, we use the analytic formula for the variance, rather than a bootstrap. Available if method if ARP or CS. Default is FALSE
 #' @export
 #'
 test_sharp_null <- function(df,
@@ -40,7 +41,8 @@ test_sharp_null <- function(df,
                             enumerate = FALSE,
                             fix_n1 = TRUE,
                             lambda = "dd",
-                            use_nc = FALSE){
+                            use_nc = FALSE,
+                            analytic_variance = FALSE){
 
   ## Process the inputted df ----
 
@@ -82,6 +84,12 @@ test_sharp_null <- function(df,
   yvec <- df[[y]]
   dvec <- df[[d]]
   mvec <- df[[m]]
+
+  if(is.null(cluster)){
+    clustervec <- 1:length(yvec)
+  }else{
+    clustervec <- df[[cluster]]
+  }
 
   ## Construct the A matrices and beta.shp ----
 
@@ -125,6 +133,7 @@ test_sharp_null <- function(df,
                               my_values = my_values,
                               rearrange = rearrange)
 
+  if(!analytic_variance){
   #Bootstrap to get beta.obs_list
   beta.obs_list <- compute_bootstrap_draws_clustered(
     f =
@@ -145,7 +154,15 @@ test_sharp_null <- function(df,
     numdraws = B,
     return_df = F,
     fix_n1 = fix_n1)
-
+  }else{
+    #Calculate the analytic variance
+    sigma.obs <- analytic_variance(yvec = yvec,
+                                   dvec = dvec,
+                                   mvec = mvec,
+                                   my_values = my_values,
+                                   inequalities_only = inequalities_only,
+                                   clustervec = clustervec)
+  }
   ## Pass to the relevant moment inequality procedure ----
 
   if(method %in% c("FSST")){
@@ -171,7 +188,7 @@ test_sharp_null <- function(df,
     } else if (lambda == "ndd") {
       lambda <- 1/sqrt(log(max(length(beta.obs), exp(1))) * log(max(exp(1), log(max(exp(1), n)))))
     }
-    
+
     fsst_result <- lpinfer::fsst(n = n, lpmodel = lpm, beta.tgt = 0, R = B,
                                  weight.matrix = weight.matrix, lambda = lambda)
 
@@ -344,9 +361,11 @@ test_sharp_null <- function(df,
 
   if(method %in% c("ARP", "CS")){
 
+    if(!analytic_variance){
     # Get variance matrix of the beta.obs boostraps
     sigma.obs <- stats::cov(base::Reduce(base::rbind,
                                          beta.obs_list))
+    }
 
     #Add the shape constraints as moments
     beta <- c(beta.obs, beta.shp)
@@ -417,13 +436,13 @@ test_sharp_null <- function(df,
         tol <- 1e-08
         positive_indices <- which(eigenvals > tol)
         ## qr(sigma)$rank
-        
-        B_Z <- eigenvecs[,positive_indices, drop = FALSE] 
+
+        B_Z <- eigenvecs[,positive_indices, drop = FALSE]
 
         # Get  "reduced" beta
         # By constuction, B_Z %*% t(B_Z) %*% beta - beta = constant
         beta_red <- t(B_Z) %*% beta
-        
+
         V_red <- diag(eigenvals[positive_indices]) # variance of reduced beta
 
         # Adjust the linear programming parameters accordingly
@@ -441,7 +460,7 @@ test_sharp_null <- function(df,
       d_ineq <- nrow(A)  # number of inequalities
 
       # Perform CC Test
-      
+
       # Finding T (Test Statistic)
       # Amat x <= d_Z
       Amat <- rbind(cbind(B_Z, - C_Z),
@@ -457,7 +476,7 @@ test_sharp_null <- function(df,
       osqp_opts <- list(verbose = FALSE,
                         eps_abs = osqp_tol,
                         eps_rel = osqp_tol)
-      
+
       qp <- osqp::solve_osqp(P = Dmat, q = -dvec, A = Amat, l = l, u = u, pars = osqp_opts)
       ## qp <- quadprog::solve.QP(Dmat = Dmat,
       ##                          dvec = dvec,
@@ -474,9 +493,9 @@ test_sharp_null <- function(df,
 
       ## Avoids some
       beta_red_star[abs(beta_red_star) < osqp_tol] <- 0
-      
+
       # Equivalent expression
-      ## T_CC <- qp$info$obj_val + t(beta_red) %*% sigmaInv %*% beta_red 
+      ## T_CC <- qp$info$obj_val + t(beta_red) %*% sigmaInv %*% beta_red
 
       # Find the Degree of Freedom:
       ## tol <- 1e-6
@@ -518,9 +537,9 @@ test_sharp_null <- function(df,
       result <- Rglpk::Rglpk_solve_LP(model$obj, model$A, rep("==", nrow(model$A)), model$rhs)
       result$status <- ifelse(result$status == 0, "OPTIMAL", "ELSE")
       result$objval <- result$optimum
-      
+
       ## result$x
-      
+
       V_min <- result$objval
       flag <- result$status
 
@@ -528,10 +547,10 @@ test_sharp_null <- function(df,
 
         dof_n <- 0
         cv_CC <- qchisq(1 - alpha, df = dof_n)
-       
+
         return(list(T_CC = T_CC, cv_CC = cv_CC, df = dof_n, reject = (T_CC > cv_CC)))
       }
-      
+
       psis <- rep(NA, d_ineq)
 
       for (j in 1:d_ineq) {
@@ -549,18 +568,18 @@ test_sharp_null <- function(df,
         result <- Rglpk::Rglpk_solve_LP(model$obj, model$A, rep("==", nrow(model$A)), model$rhs)
         result$status <- ifelse(result$status == 0, "OPTIMAL", "ELSE")
         result$objval <- result$optimum
-        
+
         ## params <- list(OutputFlag=0)
         ## result <- gurobi::gurobi(model, params)
-        
+
         if (result$status != "OPTIMAL") {
           psis[j] <- -1
         } else {
           psis[j] <- result$objval
         }
-        
+
       }
-      
+
       # Define A_eq0, A_eq, and b_eq
       # mstar = - d_Z + B_Z %*% beta_red*
       ## mstar <- d_Z - B_Z %*% beta_red_star
@@ -631,10 +650,10 @@ test_sharp_null <- function(df,
       ##   }
 
         # Collect rows of A_ineq corresponding to implicit equalities
-      ## A_impeq <- A_ineq0[(0 - nb_ineq_min) < tol, ] 
+      ## A_impeq <- A_ineq0[(0 - nb_ineq_min) < tol, ]
 
       psi_tol <- 1e-6
-      
+
       A_impeq <- I_d_ineq[ (-psis) < psi_tol, , drop = FALSE]
 
       A_full_eq <- rbind(A_impeq, -t(C_Z), t(B_Z %*% beta_red_star - d_Z))
@@ -642,9 +661,9 @@ test_sharp_null <- function(df,
       # Calculate rank of A_full_eq
       qr_tol <- 1e-5 # important; don't be too accurate
       rkA <- qr(t(A_full_eq) %*% A_full_eq, tol = qr_tol)$rank
-      
+
         if (qr(B_Z)$rank == d_ineq) {
-          
+
           # Combine A_impeq and A_eq0
           ## A_full_eq <- rbind(A_impeq, rbind(-t(C_Z), t(B_Z %*% beta_red_star - d_Z)))
 
@@ -653,28 +672,28 @@ test_sharp_null <- function(df,
 
           # Calculate dof_n
           dof_n <- d_ineq - rkA
-          
+
         } else if (qr(B_Z)$rank < d_ineq) {
-         
+
           ## G <- cbind(t(A_impeq), C_Z, B_Z %*% beta_red_star - d_Z)
           ## qr_tG <- qr(t(G))
           ## rank_G <- qr_tG$rank
 
           G <- t(A_full_eq)
           rank_G <- rkA
-          
+
           if (rank_G == nrow(G)) {
-            
+
             dof_n <- 0
-            
+
           } else {
-            
+
             ## G1_ind <- qr_tG$pivot[1:rank_G]
             ## G2_ind <- setdiff(1:nrow(G), G1_ind)
 
             ## G1 <- G[G1_ind, , drop = FALSE]
             ## G2 <- G[G2_ind, , drop = FALSE]
-            
+
             ## B_Z1 <- B_Z[G1_ind, , drop = FALSE]
             ## B_Z2 <- B_Z[G2_ind, , drop = FALSE]
 
@@ -686,14 +705,14 @@ test_sharp_null <- function(df,
 
             G1 <- G[G1_ind, , drop = FALSE]
             G2 <- G[G2_ind, , drop = FALSE]
-            
+
             B_Z1 <- B_Z[G1_ind, , drop = FALSE]
             B_Z2 <- B_Z[G2_ind, , drop = FALSE]
 
             ## Gamma <- - solve(G1 %*% t(G1), tol = .Machine$double.eps^3) %*% G1 %*% t(G2)
             Gamma <- - qr.coef(qr(t(G1), tol = qr_tol), t(G2))
             dof_n <- qr(t(Gamma) %*% B_Z1 + B_Z2, tol = qr_tol)$rank
-            
+
           }
         }
 
@@ -908,23 +927,138 @@ get_beta.obs_fn <- function(yvec, dvec, mvec, inequalities_only,
     # to cast equalities as inequalities
     beta.obs <- c(p_m_d0, p_m_d1,
                   -p_m_d0, -p_m_d1,
-                  p_ym_d1 - p_ym_d0)
+                  p_ym_1_vec - p_ym_0_vec)
   } else {
     beta.obs <- c(p_m_d0, p_m_d1,
-                  p_ym_d1 - p_ym_d0)
+                  p_ym_1_vec - p_ym_0_vec)
   }
 
   return(beta.obs)
 }
 
-## Creates dummy variables for each (y, m) pair
-create_mydummy <- function(df, d, m, y, my_values) {
+#Function to get the IFs for beta_obs and its subcomponents
+get_IFs <- function(yvec, dvec, mvec, my_values, mvalues = unique(my_values$m),
+                    inequalities_only = T){
+  n <- length(yvec)
+  n0 <- sum(dvec == 0)
+  n1 <- sum(dvec == 1)
 
-  for (j in 1:nrow(my_values)) {
-    dummy_vec <- sapply(1:nrow(df), function(i) all(t(df[i, c(m, y)]) == my_values[j,2:1]))
-    df[[paste0(unlist(my_values[j,2:1]), collapse = "")]] <- dummy_vec
+  p_ym_0_noncentered_IFs <- matrix(NA, nrow = n, ncol = NROW(my_values) )
+  p_ym_0_centered_IFs <- matrix(NA, nrow = n, ncol = NROW(my_values) )
+
+  p_ym_1_noncentered_IFs <- matrix(NA, nrow = n, ncol = NROW(my_values) )
+  p_ym_1_centered_IFs <- matrix(NA, nrow = n, ncol = NROW(my_values) )
+
+
+
+  for(i in 1:NROW(my_values)){
+    p_ym_0_indicators <- (yvec == my_values$y[i]) &
+      (mvec == my_values$m[i]) &
+      (dvec == 0)
+
+    p_ym_0_noncentered_IFs[,i] <- p_ym_0_indicators / (n0/n)
+    p_ym_0_centered_IFs[,i] <- p_ym_0_indicators / (n0/n) - mean(p_ym_0_indicators)/ (n0/n)
+
+    p_ym_1_indicators <- (yvec == my_values$y[i]) &
+      (mvec == my_values$m[i]) &
+      (dvec == 1)
+
+    p_ym_1_noncentered_IFs[,i] <- p_ym_1_indicators / (n1/n)
+    p_ym_1_centered_IFs[,i] <- p_ym_1_indicators / (n1/n) - mean(p_ym_1_indicators)/ (n1/n)
+
   }
 
-  return(df)
+
+  k <- length(mvalues )
+
+  p_m_0_noncentered_IFs <- matrix(NA, nrow = n, ncol = k )
+  p_m_0_centered_IFs <- matrix(NA, nrow = n, ncol = k )
+
+  p_m_1_noncentered_IFs <- matrix(NA, nrow = n, ncol = k )
+  p_m_1_centered_IFs <- matrix(NA, nrow = n, ncol = k )
+
+
+  for(i in 1:k){
+    p_m_0_indicators <-
+      (mvec == mvalues[i]) &
+      (dvec == 0)
+
+    p_m_0_noncentered_IFs[,i] <- p_m_0_indicators / (n0/n)
+    p_m_0_centered_IFs[,i] <- p_m_0_indicators / (n0/n) - mean(p_m_0_indicators)/ (n0/n)
+
+    p_m_1_indicators <-
+      (mvec == mvalues[i]) &
+      (dvec == 1)
+
+    p_m_1_noncentered_IFs[,i] <- p_m_1_indicators / (n1/n)
+    p_m_1_centered_IFs[,i] <- p_m_1_indicators / (n1/n) - mean(p_m_1_indicators)/ (n1/n)
+
+  }
+
+  if (inequalities_only) {
+    #Duplicate the first two sets of rows with opposite signs
+    # to cast equalities as inequalities
+    beta.obs_noncentered_IFs <- cbind(
+      p_m_0_noncentered_IFs,
+      p_m_1_noncentered_IFs,
+      -p_m_0_noncentered_IFs,
+      -p_m_1_noncentered_IFs,
+      p_ym_1_noncentered_IFs - p_ym_0_noncentered_IFs)
+
+    beta.obs_centered_IFs <- cbind(
+                  p_m_0_centered_IFs,
+                  p_m_1_centered_IFs,
+                  -p_m_0_centered_IFs,
+                  -p_m_1_centered_IFs,
+                  p_ym_1_centered_IFs - p_ym_0_centered_IFs)
+  } else {
+    beta.obs_noncentered_IFs <- cbind(
+      p_m_0_noncentered_IFs,
+      p_m_1_noncentered_IFs,
+      p_ym_1_noncentered_IFs - p_ym_0_noncentered_IFs)
+
+
+     beta.obs_centered_IFs <- cbind(
+      p_m_0_centered_IFs,
+      p_m_1_centered_IFs,
+      p_ym_1_centered_IFs - p_ym_0_centered_IFs)
+  }
+
+
+  return(list(beta.obs_noncentered_IFs = beta.obs_noncentered_IFs,
+              beta.obs_centered_IFs = beta.obs_centered_IFs,
+              p_ym_0_noncentered_IFs = p_ym_0_noncentered_IFs,
+              p_ym_0_centered_IFs = p_ym_0_centered_IFs,
+              p_ym_1_noncentered_IFs = p_ym_1_noncentered_IFs,
+              p_ym_1_centered_IFs = p_ym_1_centered_IFs,
+              p_m_0_noncentered_IFs = p_m_0_noncentered_IFs,
+              p_m_0_centered_IFs = p_m_0_centered_IFs,
+              p_m_1_noncentered_IFs = p_m_1_noncentered_IFs,
+              p_m_1_centered_IFs = p_m_1_centered_IFs
+              ))
+
 }
 
+analytic_variance <-
+function(yvec, dvec, mvec, clustervec = seq(from = 1, to = length(yvec)), my_values, mvalues = unique(my_values$m),
+         inequalities_only){
+
+  IFs <- get_IFs(yvec = yvec,
+                 dvec = dvec,
+                 mvec = mvec,
+                 my_values = my_values,
+                 mvalues = mvalues,
+                 inequalities_only = inequalities_only)$beta.obs_centered_IFs
+
+  #Sum the IFs within cluster
+  IFs_clustered <- base::rowsum(x = IFs,
+                                group = clustervec)
+
+  #Variance is Cov(IFs * N_cluster/N  ) / N_Cluster
+  n <- length(yvec)
+  c <- length(unique(clustervec))
+
+  vcv <- cov(IFs_clustered * c/n) / NROW(IFs_clustered)
+
+  return(vcv)
+}
