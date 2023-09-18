@@ -721,7 +721,11 @@ test_sharp_null <- function(df,
       # Finds vertices for the polytope Ax <= b
 
       cv_CC <- qchisq(1 - alpha, df = dof_n)
-      return(list(T_CC = T_CC, cv_CC = cv_CC, df = dof_n, reject = (T_CC > cv_CC)))
+      return(list(T_CC = T_CC,
+                  cv_CC = cv_CC,
+                  df = dof_n,
+                  reject = (T_CC > cv_CC),
+                  pval = 1-stats::pchisq(q = T_CC, df = dof_n)))
     }
   }
 
