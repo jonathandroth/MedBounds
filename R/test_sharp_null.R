@@ -957,14 +957,14 @@ get_IFs <- function(yvec, dvec, mvec, my_values, mvalues = unique(my_values$m),
       (dvec == 0)
 
     p_ym_0_noncentered_IFs[,i] <- p_ym_0_indicators / (n0/n)
-    p_ym_0_centered_IFs[,i] <- p_ym_0_indicators / (n0/n) - mean(p_ym_0_indicators)/ (n0/n)
+    p_ym_0_centered_IFs[,i] <- (dvec==0) * (p_ym_0_indicators - mean(p_ym_0_noncentered_IFs[,i])) / (n0/n)
 
     p_ym_1_indicators <- (yvec == my_values$y[i]) &
       (mvec == my_values$m[i]) &
       (dvec == 1)
 
     p_ym_1_noncentered_IFs[,i] <- p_ym_1_indicators / (n1/n)
-    p_ym_1_centered_IFs[,i] <- p_ym_1_indicators / (n1/n) - mean(p_ym_1_indicators)/ (n1/n)
+    p_ym_1_centered_IFs[,i] <- (dvec==1) * (p_ym_1_indicators - mean(p_ym_1_noncentered_IFs[,i])) / (n1/n)
 
   }
 
@@ -984,14 +984,14 @@ get_IFs <- function(yvec, dvec, mvec, my_values, mvalues = unique(my_values$m),
       (dvec == 0)
 
     p_m_0_noncentered_IFs[,i] <- p_m_0_indicators / (n0/n)
-    p_m_0_centered_IFs[,i] <- p_m_0_indicators / (n0/n) - mean(p_m_0_indicators)/ (n0/n)
+    p_m_0_centered_IFs[,i] <- (dvec==0) * (p_m_0_indicators - mean(p_m_0_noncentered_IFs[,i])) / (n0/n)
 
     p_m_1_indicators <-
       (mvec == mvalues[i]) &
       (dvec == 1)
 
     p_m_1_noncentered_IFs[,i] <- p_m_1_indicators / (n1/n)
-    p_m_1_centered_IFs[,i] <- p_m_1_indicators / (n1/n) - mean(p_m_1_indicators)/ (n1/n)
+    p_m_1_centered_IFs[,i] <- (dvec==1) * (p_m_1_indicators - mean(p_m_1_noncentered_IFs[,i])) / (n1/n)
 
   }
 
