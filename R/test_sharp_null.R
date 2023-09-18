@@ -102,7 +102,7 @@ test_sharp_null <- function(df,
                                         mvec = mvec,
                                         ordering = ordering,
                                         inequalities_only = inequalities_only
-                                        )
+  )
 
   A.shp <- A_list$A.shp
   A.obs <- A_list$A.obs
@@ -111,7 +111,7 @@ test_sharp_null <- function(df,
   ## Construct beta.obs and beta.obs_list ----
 
   #The following values are used by beta.obs
-    #Note we need to do this here so that the yvalues remain constant across boostrap draws
+  #Note we need to do this here so that the yvalues remain constant across boostrap draws
   yvalues <- unique(yvec)
   mvalues <- unique(mvec)
   my_values <- purrr::cross_df(list(m=mvalues,y=yvalues)) %>%
@@ -133,28 +133,30 @@ test_sharp_null <- function(df,
                               my_values = my_values,
                               rearrange = rearrange)
 
-  if (!analytic_variance) {
-  #Bootstrap to get beta.obs_list
-  beta.obs_list <- compute_bootstrap_draws_clustered(
-    f =
-      function(df,d,y,m,...){get_beta.obs_fn(
-        yvec = df[[y]],
-        dvec = df[[d]],
-        mvec = df[[m]],
-        inequalities_only = inequalities_only,
-        yvalues = yvalues,
-        mvalues = mvalues,
-        my_values = my_values,
-        rearrange = rearrange)},
-    df = df,
-    d = d,
-    m = m,
-    y = y,
-    cluster = cluster,
-    numdraws = B,
-    return_df = F,
-    fix_n1 = fix_n1)
-  } else {
+  if(!analytic_variance | method %in% c("FSST")){
+    #Bootstrap to get beta.obs_list
+    beta.obs_list <- compute_bootstrap_draws_clustered(
+      f =
+        function(df,d,y,m,...){get_beta.obs_fn(
+          yvec = df[[y]],
+          dvec = df[[d]],
+          mvec = df[[m]],
+          inequalities_only = inequalities_only,
+          yvalues = yvalues,
+          mvalues = mvalues,
+          my_values = my_values,
+          rearrange = rearrange)},
+      df = df,
+      d = d,
+      m = m,
+      y = y,
+      cluster = cluster,
+      numdraws = B,
+      return_df = F,
+      fix_n1 = fix_n1)
+  }
+
+  if (analytic_variance){
     #Calculate the analytic variance
     sigma.obs <- analytic_variance(yvec = yvec,
                                    dvec = dvec,
@@ -177,7 +179,7 @@ test_sharp_null <- function(df,
     } else {
       beta.obs_FSST <- c(list(beta.obs), beta.obs_list)
     }
-    
+
     lpm <- lpinfer::lpmodel(A.obs = A.obs,
                             A.shp = A.shp,
                             A.tgt = A.tgt,
@@ -369,9 +371,9 @@ test_sharp_null <- function(df,
   if(method %in% c("ARP", "CS")){
 
     if(!analytic_variance){
-    # Get variance matrix of the beta.obs boostraps
-    sigma.obs <- stats::cov(base::Reduce(base::rbind,
-                                         beta.obs_list))
+      # Get variance matrix of the beta.obs boostraps
+      sigma.obs <- stats::cov(base::Reduce(base::rbind,
+                                           beta.obs_list))
     }
 
     #Add the shape constraints as moments
@@ -396,12 +398,12 @@ test_sharp_null <- function(df,
       }
 
       if (is.null(hybrid_kappa)) {
-      arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
-                                                 y_T = beta,
-                                                 X_T = A,
-                                                 sigma = sigma,
-                                                 alpha = alpha,
-                                                 hybrid_flag = "ARP")
+        arp <- HonestDiD:::.lp_conditional_test_fn(theta = 0,
+                                                   y_T = beta,
+                                                   X_T = A,
+                                                   sigma = sigma,
+                                                   alpha = alpha,
+                                                   hybrid_flag = "ARP")
       } else {
         lf_cv <- HonestDiD:::.compute_least_favorable_cv(X_T = A,
                                                          sigma = sigma,
@@ -656,7 +658,7 @@ test_sharp_null <- function(df,
       ##     }
       ##   }
 
-        # Collect rows of A_ineq corresponding to implicit equalities
+      # Collect rows of A_ineq corresponding to implicit equalities
       ## A_impeq <- A_ineq0[(0 - nb_ineq_min) < tol, ]
 
       psi_tol <- 1e-6
@@ -669,59 +671,59 @@ test_sharp_null <- function(df,
       qr_tol <- 1e-5 # important; don't be too accurate
       rkA <- qr(t(A_full_eq) %*% A_full_eq, tol = qr_tol)$rank
 
-        if (qr(B_Z)$rank == d_ineq) {
+      if (qr(B_Z)$rank == d_ineq) {
 
-          # Combine A_impeq and A_eq0
-          ## A_full_eq <- rbind(A_impeq, rbind(-t(C_Z), t(B_Z %*% beta_red_star - d_Z)))
+        # Combine A_impeq and A_eq0
+        ## A_full_eq <- rbind(A_impeq, rbind(-t(C_Z), t(B_Z %*% beta_red_star - d_Z)))
 
-          ## # Calculate rank of A_full_eq
-          ## rkA <- qr(A_full_eq)$rank
+        ## # Calculate rank of A_full_eq
+        ## rkA <- qr(A_full_eq)$rank
 
-          # Calculate dof_n
-          dof_n <- d_ineq - rkA
+        # Calculate dof_n
+        dof_n <- d_ineq - rkA
 
-        } else if (qr(B_Z)$rank < d_ineq) {
+      } else if (qr(B_Z)$rank < d_ineq) {
 
-          ## G <- cbind(t(A_impeq), C_Z, B_Z %*% beta_red_star - d_Z)
-          ## qr_tG <- qr(t(G))
-          ## rank_G <- qr_tG$rank
+        ## G <- cbind(t(A_impeq), C_Z, B_Z %*% beta_red_star - d_Z)
+        ## qr_tG <- qr(t(G))
+        ## rank_G <- qr_tG$rank
 
-          G <- t(A_full_eq)
-          rank_G <- rkA
+        G <- t(A_full_eq)
+        rank_G <- rkA
 
-          if (rank_G == nrow(G)) {
+        if (rank_G == nrow(G)) {
 
-            dof_n <- 0
+          dof_n <- 0
 
-          } else {
+        } else {
 
-            ## G1_ind <- qr_tG$pivot[1:rank_G]
-            ## G2_ind <- setdiff(1:nrow(G), G1_ind)
+          ## G1_ind <- qr_tG$pivot[1:rank_G]
+          ## G2_ind <- setdiff(1:nrow(G), G1_ind)
 
-            ## G1 <- G[G1_ind, , drop = FALSE]
-            ## G2 <- G[G2_ind, , drop = FALSE]
+          ## G1 <- G[G1_ind, , drop = FALSE]
+          ## G2 <- G[G2_ind, , drop = FALSE]
 
-            ## B_Z1 <- B_Z[G1_ind, , drop = FALSE]
-            ## B_Z2 <- B_Z[G2_ind, , drop = FALSE]
+          ## B_Z1 <- B_Z[G1_ind, , drop = FALSE]
+          ## B_Z2 <- B_Z[G2_ind, , drop = FALSE]
 
-            ## Gamma <- - solve(G1 %*% t(G1)) %*% G1 %*% t(G2)
-            ## dof_n <- qr(t(Gamma) %*% B_Z1 + B_Z2)$rank
+          ## Gamma <- - solve(G1 %*% t(G1)) %*% G1 %*% t(G2)
+          ## dof_n <- qr(t(Gamma) %*% B_Z1 + B_Z2)$rank
 
-            G1_ind <- qr(t(G), tol = qr_tol)$pivot[1:rank_G]
-            G2_ind <- setdiff(1:nrow(G), G1_ind)
+          G1_ind <- qr(t(G), tol = qr_tol)$pivot[1:rank_G]
+          G2_ind <- setdiff(1:nrow(G), G1_ind)
 
-            G1 <- G[G1_ind, , drop = FALSE]
-            G2 <- G[G2_ind, , drop = FALSE]
+          G1 <- G[G1_ind, , drop = FALSE]
+          G2 <- G[G2_ind, , drop = FALSE]
 
-            B_Z1 <- B_Z[G1_ind, , drop = FALSE]
-            B_Z2 <- B_Z[G2_ind, , drop = FALSE]
+          B_Z1 <- B_Z[G1_ind, , drop = FALSE]
+          B_Z2 <- B_Z[G2_ind, , drop = FALSE]
 
-            ## Gamma <- - solve(G1 %*% t(G1), tol = .Machine$double.eps^3) %*% G1 %*% t(G2)
-            Gamma <- - qr.coef(qr(t(G1), tol = qr_tol), t(G2))
-            dof_n <- qr(t(Gamma) %*% B_Z1 + B_Z2, tol = qr_tol)$rank
+          ## Gamma <- - solve(G1 %*% t(G1), tol = .Machine$double.eps^3) %*% G1 %*% t(G2)
+          Gamma <- - qr.coef(qr(t(G1), tol = qr_tol), t(G2))
+          dof_n <- qr(t(Gamma) %*% B_Z1 + B_Z2, tol = qr_tol)$rank
 
-          }
         }
+      }
 
       ## }
       # Enumerating the vertices using (outdated) package vertexenum
@@ -856,13 +858,13 @@ construct_Aobs_Ashp_betashp <- function(yvec,
   }
 
   if (inequalities_only) {
-  #Remove both the extraneous thetas *and* kappa,zeta,eta
-  A.obs <- A.obs[, -c(l_gt_k_inds, kappa_indices, eta_indices, zeta_indices)]
+    #Remove both the extraneous thetas *and* kappa,zeta,eta
+    A.obs <- A.obs[, -c(l_gt_k_inds, kappa_indices, eta_indices, zeta_indices)]
 
-  #The first 2K rows of A.obs are equality constraints, so we duplicate them with opposite signs to get equalities as inequalities
-  A.obs <- rbind(A.obs[1:(2 * K),],
-                 -A.obs[1:(2 * K),],
-                 A.obs[(2 * K + 1):NROW(A.obs), ])
+    #The first 2K rows of A.obs are equality constraints, so we duplicate them with opposite signs to get equalities as inequalities
+    A.obs <- rbind(A.obs[1:(2 * K),],
+                   -A.obs[1:(2 * K),],
+                   A.obs[(2 * K + 1):NROW(A.obs), ])
   } else {
     #Remove the extraneous thetas only
     A.obs <- A.obs[, -c(l_gt_k_inds)]
@@ -1017,11 +1019,11 @@ get_IFs <- function(yvec, dvec, mvec, my_values, mvalues = unique(my_values$m),
       p_ym_1_noncentered_IFs - p_ym_0_noncentered_IFs)
 
     beta.obs_centered_IFs <- cbind(
-                  p_m_0_centered_IFs,
-                  p_m_1_centered_IFs,
-                  -p_m_0_centered_IFs,
-                  -p_m_1_centered_IFs,
-                  p_ym_1_centered_IFs - p_ym_0_centered_IFs)
+      p_m_0_centered_IFs,
+      p_m_1_centered_IFs,
+      -p_m_0_centered_IFs,
+      -p_m_1_centered_IFs,
+      p_ym_1_centered_IFs - p_ym_0_centered_IFs)
   } else {
     beta.obs_noncentered_IFs <- cbind(
       p_m_0_noncentered_IFs,
@@ -1029,7 +1031,7 @@ get_IFs <- function(yvec, dvec, mvec, my_values, mvalues = unique(my_values$m),
       p_ym_1_noncentered_IFs - p_ym_0_noncentered_IFs)
 
 
-     beta.obs_centered_IFs <- cbind(
+    beta.obs_centered_IFs <- cbind(
       p_m_0_centered_IFs,
       p_m_1_centered_IFs,
       p_ym_1_centered_IFs - p_ym_0_centered_IFs)
@@ -1046,30 +1048,30 @@ get_IFs <- function(yvec, dvec, mvec, my_values, mvalues = unique(my_values$m),
               p_m_0_centered_IFs = p_m_0_centered_IFs,
               p_m_1_noncentered_IFs = p_m_1_noncentered_IFs,
               p_m_1_centered_IFs = p_m_1_centered_IFs
-              ))
+  ))
 
 }
 
 analytic_variance <-
-function(yvec, dvec, mvec, clustervec = seq(from = 1, to = length(yvec)), my_values, mvalues = unique(my_values$m),
-         inequalities_only){
+  function(yvec, dvec, mvec, clustervec = seq(from = 1, to = length(yvec)), my_values, mvalues = unique(my_values$m),
+           inequalities_only){
 
-  IFs <- get_IFs(yvec = yvec,
-                 dvec = dvec,
-                 mvec = mvec,
-                 my_values = my_values,
-                 mvalues = mvalues,
-                 inequalities_only = inequalities_only)$beta.obs_centered_IFs
+    IFs <- get_IFs(yvec = yvec,
+                   dvec = dvec,
+                   mvec = mvec,
+                   my_values = my_values,
+                   mvalues = mvalues,
+                   inequalities_only = inequalities_only)$beta.obs_centered_IFs
 
-  #Sum the IFs within cluster
-  IFs_clustered <- base::rowsum(x = IFs,
-                                group = clustervec)
+    #Sum the IFs within cluster
+    IFs_clustered <- base::rowsum(x = IFs,
+                                  group = clustervec)
 
-  #Variance is Cov(IFs * N_cluster/N  ) / N_Cluster
-  n <- length(yvec)
-  c <- length(unique(clustervec))
+    #Variance is Cov(IFs * N_cluster/N  ) / N_Cluster
+    n <- length(yvec)
+    c <- length(unique(clustervec))
 
-  vcv <- cov(IFs_clustered * c/n) / NROW(IFs_clustered)
+    vcv <- cov(IFs_clustered * c/n) / NROW(IFs_clustered)
 
-  return(vcv)
-}
+    return(vcv)
+  }
