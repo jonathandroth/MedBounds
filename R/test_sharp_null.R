@@ -133,7 +133,7 @@ test_sharp_null <- function(df,
                               my_values = my_values,
                               rearrange = rearrange)
 
-  if(!analytic_variance){
+  if (!analytic_variance) {
   #Bootstrap to get beta.obs_list
   beta.obs_list <- compute_bootstrap_draws_clustered(
     f =
@@ -154,7 +154,7 @@ test_sharp_null <- function(df,
     numdraws = B,
     return_df = F,
     fix_n1 = fix_n1)
-  }else{
+  } else {
     #Calculate the analytic variance
     sigma.obs <- analytic_variance(yvec = yvec,
                                    dvec = dvec,
@@ -170,11 +170,18 @@ test_sharp_null <- function(df,
     A.tgt <- A_list$A.tgt
 
     # Run FSST
+    if (analytic_variance) {
+      beta.obs_FSST <- list(c(list(beta.obs),
+                              beta.obs_list),
+                            sigma.obs)
+    } else {
+      beta.obs_FSST <- c(list(beta.obs), beta.obs_list)
+    }
+    
     lpm <- lpinfer::lpmodel(A.obs = A.obs,
                             A.shp = A.shp,
                             A.tgt = A.tgt,
-                            beta.obs = c(list(beta.obs),
-                                         beta.obs_list),
+                            beta.obs = beta.obs_FSST,
                             beta.shp = beta.shp)
 
     if(is.null(cluster) | use_nc == FALSE){
