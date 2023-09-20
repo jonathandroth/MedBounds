@@ -23,7 +23,8 @@ test_sharp_null(
   fix_n1 = TRUE,
   lambda = "dd",
   use_nc = FALSE,
-  analytic_variance = FALSE
+  analytic_variance = FALSE,
+  defiers_share = 0
 )
 }
 \arguments{
@@ -65,6 +66,8 @@ support}
 \item{use_nc}{If the data is clustered, should FSST use the number of clusters for determining lambda (versus total observations). Default is false.}
 
 \item{analytic_variance}{If TRUE, we use the analytic formula for the variance, rather than a bootstrap. Available if method if ARP or CS. Default is FALSE}
+
+\item{defiers_share}{Bound on the proportion of defiers in the population. Default is 0 which indicates that the monotonicity constraint is imposed.}
 }
 \description{
 This function tests the sharp null that Y(1,m) = Y(0,m). The

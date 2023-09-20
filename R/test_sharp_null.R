@@ -22,6 +22,7 @@
 #' @param lambda Lambda value for FSST. Default is "dd" in which case the "data-driven" lambda recommended by FSST is used. If lambda = "ndd", the non data-driven recommendation is used. See Remark 4.2 of FSST.
 #' @param use_nc If the data is clustered, should FSST use the number of clusters for determining lambda (versus total observations). Default is false.
 #' @param analytic_variance If TRUE, we use the analytic formula for the variance, rather than a bootstrap. Available if method if ARP or CS. Default is FALSE
+#' @param defiers_share Bound on the proportion of defiers in the population. Default is 0 which indicates that the monotonicity constraint is imposed.
 #' @export
 #'
 test_sharp_null <- function(df,
@@ -42,7 +43,8 @@ test_sharp_null <- function(df,
                             fix_n1 = TRUE,
                             lambda = "dd",
                             use_nc = FALSE,
-                            analytic_variance = FALSE){
+                            analytic_variance = FALSE,
+                            defiers_share = 0){
 
   ## Process the inputted df ----
 
@@ -101,7 +103,8 @@ test_sharp_null <- function(df,
   A_list <- construct_Aobs_Ashp_betashp(yvec = yvec,
                                         mvec = mvec,
                                         ordering = ordering,
-                                        inequalities_only = inequalities_only
+                                        inequalities_only = inequalities_only,
+                                        defiers_share = defiers_share
                                         )
 
   A.shp <- A_list$A.shp
@@ -746,7 +749,8 @@ test_sharp_null <- function(df,
 construct_Aobs_Ashp_betashp <- function(yvec,
                                         mvec,
                                         ordering,
-                                        inequalities_only = F){
+                                        inequalities_only = F,
+                                        defiers_share = 0){
 
   # Cardinality of the supports of Y and M
   d_y <- length(unique(yvec))
@@ -769,8 +773,9 @@ construct_Aobs_Ashp_betashp <- function(yvec,
 
   par_lengths <- c("theta" = K^2, "delta" = d_y * K, "zeta" = K,
                    "kappa" = d_y * K, "eta" = K)
+  
   len_x <- sum(par_lengths)
-
+  
   parameter_types <- c(rep("theta", par_lengths[["theta"]]),
                        rep("delta", par_lengths[["delta"]]),
                        rep("zeta", par_lengths[["zeta"]]),
@@ -798,7 +803,12 @@ construct_Aobs_Ashp_betashp <- function(yvec,
   l_gt_k_inds <- which(l_gt_k_mat)
 
   # Set shape constraints using A.shp x = beta.shp
-  A.shp <- matrix(0, nrow = K, ncol = len_x)
+  if (defiers_share == 0) {
+    A.shp <- matrix(0, nrow = K, ncol = len_x)
+  } else {
+    A.shp <- matrix(0, nrow = K + 1, ncol = len_x)
+  }
+  
 
   # Set bound on sum_{l!=k} theta_lk - sum_q delta_qk
   # Also includes eta_kk (= theta_kk TV_kk) as a "nuisance" parameter
@@ -813,19 +823,45 @@ construct_Aobs_Ashp_betashp <- function(yvec,
     A.shp[k, sum(par_lengths[1:4]) + k] <- 1
   }
 
-  if (inequalities_only == T) {
-    #Remove both the extraneous thetas *and* kappa,zeta,eta
-    A.shp <- A.shp[, -c(l_gt_k_inds, kappa_indices, eta_indices, zeta_indices)]
 
-    #Add shape constraint that all parameters are >= 0 (this is not enforced by ARP)
-    A.shp <- rbind(A.shp, diag(NCOL(A.shp)))
+  if (defiers_share == 0) {
+    if (inequalities_only == T) {
+      #Remove both the extraneous thetas *and* kappa,zeta,eta
+      A.shp <- A.shp[, -c(l_gt_k_inds, kappa_indices, eta_indices, zeta_indices)]
 
+      #Add shape constraint that all parameters are >= 0 (this is not enforced by ARP)
+      A.shp <- rbind(A.shp, diag(NCOL(A.shp)))
+
+    } else {
+      #Remove the extraneous thetas only
+      A.shp <- A.shp[, -l_gt_k_inds]
+    }
+    
   } else {
-    #Remove the extraneous thetas only
-    A.shp <- A.shp[, -l_gt_k_inds]
+
+    A.shp[K + 1, l_gt_k_inds] <- - 1
+
+    if (inequalities_only == T) {
+      #Remove both the extraneous thetas *and* kappa,zeta,eta
+      A.shp <- A.shp[, -c(kappa_indices, eta_indices, zeta_indices)]
+
+      #Add shape constraint that all parameters are >= 0 (this is not enforced by ARP)
+      A.shp <- rbind(A.shp, diag(NCOL(A.shp)))
+
+    } else {    
+      # Inequalities to equalities for defiers_share
+      A.shp <- cbind(A.shp, c(rep(0, K), -1))
+    }
   }
 
   beta.shp <- rep(0, NROW(A.shp))
+
+  if (defiers_share != 0) {
+    beta.shp[K + 1]  <- - defiers_share
+  }
+
+
+
 
   # Set remaining constraints using A.obs x = beta.obs
 
@@ -855,23 +891,44 @@ construct_Aobs_Ashp_betashp <- function(yvec,
                 sum(par_lengths[1:3]) + ((k-1) * d_y + 1):(k * d_y))] <- -1
   }
 
-  if (inequalities_only) {
-  #Remove both the extraneous thetas *and* kappa,zeta,eta
-  A.obs <- A.obs[, -c(l_gt_k_inds, kappa_indices, eta_indices, zeta_indices)]
+  if (defiers_share == 0) {
+    if (inequalities_only) {
+      # Remove both the extraneous thetas *and* kappa,zeta,eta
+      A.obs <- A.obs[, -c(l_gt_k_inds, kappa_indices, eta_indices, zeta_indices)]
 
-  #The first 2K rows of A.obs are equality constraints, so we duplicate them with opposite signs to get equalities as inequalities
-  A.obs <- rbind(A.obs[1:(2 * K),],
-                 -A.obs[1:(2 * K),],
-                 A.obs[(2 * K + 1):NROW(A.obs), ])
+      # The first 2K rows of A.obs are equality constraints, so we duplicate
+      # them with opposite signs to get equalities as inequalities
+      A.obs <- rbind(A.obs[1:(2 * K),],
+                     -A.obs[1:(2 * K),],
+                     A.obs[(2 * K + 1):NROW(A.obs), ])
+    } else {
+      #Remove the extraneous thetas only
+      A.obs <- A.obs[, -c(l_gt_k_inds)]
+    }
+
+    #Create A.tgt (only used for lpinfer functions)
+    A.tgt <- numeric(len_x)
+    A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
+    A.tgt <- A.tgt[-l_gt_k_inds]
+    
   } else {
-    #Remove the extraneous thetas only
-    A.obs <- A.obs[, -c(l_gt_k_inds)]
-  }
+    if (inequalities_only) {
+      # Remove kappa,zeta,eta
+      A.obs <- A.obs[, -c(kappa_indices, eta_indices, zeta_indices)]
 
-  #Create A.tgt (only used for lpinfer functions)
-  A.tgt <- numeric(len_x)
-  A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
-  A.tgt <- A.tgt[-l_gt_k_inds]
+      # The first 2K rows of A.obs are equality constraints, so we duplicate
+      # them with opposite signs to get equalities as inequalities
+      A.obs <- rbind(A.obs[1:(2 * K),],
+                     -A.obs[1:(2 * K),],
+                     A.obs[(2 * K + 1):NROW(A.obs), ])
+    } 
+
+    #Create A.tgt (only used for lpinfer functions)
+    A.tgt <- numeric(len_x)
+    A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
+
+  }
+  
 
 
   return(list(A.obs = A.obs,
