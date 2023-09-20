@@ -87,6 +87,88 @@ df[[y]] <- yvec
 }
 
 
+#' @title Computes the breakdown number of defiers consistent with the sharp null
+#' when M is binary
+#'@description Computes the minimum fraction of the population that would need
+#'to be defiers to be consistent with the sharp null.
+#' Also computes the minimum ratio of defiers to compliers
+#' @param df A data frame
+#' @param d Name of the treatment variable in the df. Must be binary
+#' @param m Name of the mediator variable
+#' @param y Name of the outcome variable
+#' @param w (Optional) Name of weighting variable. If null, equal weights are used
+#' @param continuous_Y (Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.
+#@param method Either "density", to use a kernel density to compute TV, or "bins", to use a discrete approximation
+#' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
+#' @export
+
+compute_min_defiers_binaryM <- function(df, d, m, y, w = NULL,
+                           continuous_Y = base::ifelse(is.null(num_Ybins),TRUE,FALSE),
+                           num_Ybins = NULL){
+
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y,
+                               w = w)
+
+
+  yvec <- df[[y]]
+
+  if(!is.null(num_Ybins)){
+    yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
+    df[[y]] <- yvec
+  }
+
+  dvec <- df[[d]]
+  mvec <- df[[m]]
+
+  if(is.null(w)){
+    wvec <- rep(1, NROW(df))
+  }else{
+    wvec <- df[[w]]
+  }
+
+  #Use the general function to compute \int (partial_dens_1 - partial_dens0)_+
+  max_p_diffs <-
+    compute_max_p_difference(dvec = dvec,
+                             mdf = data.frame(m= mvec),
+                             yvec = yvec,
+                             wvec = wvec,
+                             continuous_Y = continuous_Y
+    )
+
+
+  #Compute probabilities of M | D
+  p_m_1 <- stats::weighted.mean(x = mvec[dvec == 1] == 1,
+                                w = wvec[dvec == 1])
+  p_m_0 <- stats::weighted.mean(x = mvec[dvec == 0] == 1,
+                                w = wvec[dvec == 0])
+
+  # Extract \int (partial_dens_{Y,M=1 | D=1} - partial_dens_{Y,M=1 | D=0})_+
+  #Note that we actually want the negative part of this, but we have
+  # (partial_dens_{Y,M=1 | D=1} - partial_dens_{Y,M=1 | D=0})_- =
+  # (partial_dens_{Y,M=1 | D=1} - partial_dens_{Y,M=1 | D=0})_+ - (P(M=1 |D=1) - P(M=1|D=0))
+  p_diff_1_reversed <- max_p_diffs$max_p_diffs[which(max_p_diffs$mvalues == 1)]
+  p_diff_1 <- p_diff_1_reversed - (p_m_1 - p_m_0)
+
+  # Extract \int (partial_dens_{Y,M=0 | D=1} - partial_dens_{Y,M=0 | D=0})_+
+  p_diff_0 <- max_p_diffs$max_p_diffs[which(max_p_diffs$mvalues == 0)]
+
+  #Minimum number of defiers is min of the p_diffs (or 0)
+  d_lb <- pmax(0, p_diff_0, p_diff_1)
+
+  #Number of compliers if P(M=1 | D=1) - P(M=1 | D=0) + (number of defiers)
+  theta_c <- p_m_1 - p_m_0 + d_lb
+
+  ratio <- d_lb / theta_c
+
+  return(list(defier_lb = d_lb,
+              ratio_lb = d_lb / theta_c))
+}
+
+
+
 compute_partial_densities_and_shares <-
   function(df, d, m, y, w= NULL,continuous_Y=TRUE,...){
     yvec <- df[[y]]
