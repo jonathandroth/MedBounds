@@ -24,7 +24,8 @@ test_sharp_null(
   lambda = "dd",
   use_nc = FALSE,
   analytic_variance = FALSE,
-  defiers_share = 0
+  defiers_share = 0,
+  new_dof_CS = FALSE
 )
 }
 \arguments{
@@ -68,6 +69,8 @@ support}
 \item{analytic_variance}{If TRUE, we use the analytic formula for the variance, rather than a bootstrap. Available if method if ARP or CS. Default is FALSE}
 
 \item{defiers_share}{Bound on the proportion of defiers in the population. Default is 0 which indicates that the monotonicity constraint is imposed.}
+
+\item{new_dof_CS}{Use the new degrees of freedom formula for Cox and Shi? Default is FALSE.}
 }
 \description{
 This function tests the sharp null that Y(1,m) = Y(0,m). The

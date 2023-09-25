@@ -23,6 +23,7 @@
 #' @param use_nc If the data is clustered, should FSST use the number of clusters for determining lambda (versus total observations). Default is false.
 #' @param analytic_variance If TRUE, we use the analytic formula for the variance, rather than a bootstrap. Available if method if ARP or CS. Default is FALSE
 #' @param defiers_share Bound on the proportion of defiers in the population. Default is 0 which indicates that the monotonicity constraint is imposed.
+#' @param new_dof_CS Use the new degrees of freedom formula for Cox and Shi? Default is FALSE.
 #' @export
 #'
 test_sharp_null <- function(df,
@@ -44,7 +45,8 @@ test_sharp_null <- function(df,
                             lambda = "dd",
                             use_nc = FALSE,
                             analytic_variance = FALSE,
-                            defiers_share = 0){
+                            defiers_share = 0,
+                            new_dof_CS = FALSE){
 
   ## Process the inputted df ----
 
@@ -503,9 +505,32 @@ test_sharp_null <- function(df,
         sigmaInv %*%
         (beta_red - beta_red_star)
 
-      ## Avoids some
+      ## Avoids some numerical instability issues
       beta_red_star[abs(beta_red_star) < osqp_tol] <- 0
 
+      if (new_dof_CS) {
+        
+        Amat_aug <- rbind(Amat,
+                          -cbind(matrix(0, nrow = d_nuis, ncol = ncol(B_Z)), diag(d_nuis)))
+        u_aug <- c(u, rep(0, d_nuis))
+
+        Khat <- which(abs(u_aug - Amat_aug %*% qp$x) < osqp_tol^(1/2))
+
+        ## I_Khat <- diag(ncol(Amat_aug))[Khat, , drop = FALSE]
+
+        qr_tol <- 1e-5 # important; don't be too accurate
+        
+        dof_n  <- qr(Amat_aug[Khat, ], tol = qr_tol)$rank -
+                             qr(Amat_aug[Khat, -(1:ncol(B_Z))], tol = qr_tol)$rank
+        cv_CC <- qchisq(1 - alpha, df = dof_n)
+        
+        return(list(T_CC = T_CC,
+                    cv_CC = cv_CC,
+                    df = dof_n,
+                    reject = (T_CC > cv_CC),
+                    pval = 1-stats::pchisq(q = T_CC, df = dof_n)))
+      }
+      
       # Equivalent expression
       ## T_CC <- qp$info$obj_val + t(beta_red) %*% sigmaInv %*% beta_red
 
