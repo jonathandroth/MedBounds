@@ -12,7 +12,6 @@ Imports:
     base,
     dplyr,
     ggplot2,
-    leebounds,
     magrittr,
     purrr,
     reldist
