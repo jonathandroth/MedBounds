@@ -13,7 +13,8 @@ test_sharp_null_fsst(
   B = 500,
   weight.matrix = "diag",
   alpha = 0.05,
-  num_Ybins = NULL
+  num_Ybins = NULL,
+  lambda = NA
 )
 }
 \arguments{

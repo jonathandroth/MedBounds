@@ -128,6 +128,11 @@ test_sharp_null <- function(df,
     regarrange <- TRUE
   }
 
+  # Override analytic var if method = FSST
+  if (method == "FSST") {
+    analytic_variance <- FALSE
+  }
+
   # Compute beta.obs at the observed data
   beta.obs <- get_beta.obs_fn(yvec = yvec,
                               dvec = dvec,
@@ -392,7 +397,7 @@ test_sharp_null <- function(df,
                    matrix(0, nrow = NROW(A.shp), ncol = NCOL(sigma.obs) + NROW(A.shp) ))
 
     #Run the relevant test
-    if (method == "ARP" ) {
+    if (method == "ARP") {
 
       #Test if sigma is numerically not psd. If so, add small amount of noise
       min_eig <- base::min(base::eigen(sigma, only.values = TRUE)$values)

@@ -20,7 +20,7 @@
 #' @export
 test_sharp_null_fsst <- function(df, d, m, y, ordering = NULL, B = 500,
                                  weight.matrix = "diag", alpha = .05,
-                                 num_Ybins = NULL){
+                                 num_Ybins = NULL, lambda = NA){
 
   df <- remove_missing_from_df(df = df,
                                d = d,
@@ -29,10 +29,11 @@ test_sharp_null_fsst <- function(df, d, m, y, ordering = NULL, B = 500,
 
 
   yvec <- df[[y]]
-
+  n <- length(yvec)
+  
   if(!is.null(num_Ybins)){
     yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
-df[[y]] <- yvec
+    df[[y]] <- yvec
   }
 
 
@@ -146,10 +147,16 @@ df[[y]] <- yvec
                                        beta.obs_list),
                           beta.shp = beta.shp)
 
+  if (!is.na(lambda)) {
+    lambda <- 1/sqrt(log(max(length(beta.obs), exp(1))) * log(max(exp(1), log(max(exp(1), n)))))
+  } else {
+    lambda <- NA
+  }
+  
   fsst_result <- lpinfer::fsst(df, lpmodel = lpm, beta.tgt = 0, R = B,
-                               weight.matrix = weight.matrix)
+                               weight.matrix = weight.matrix, lambda = lambda)
 
-  return(list(result = fsst_result, reject = (fsst_result$pval < alpha)))
+  return(list(result = fsst_result, reject = (fsst_result$pval[,2] < alpha)))
 }
 
 #' @title Hypothesis test for the sharp null with alternative LP formulation
