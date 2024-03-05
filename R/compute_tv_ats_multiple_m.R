@@ -13,6 +13,8 @@
 #' the weighted average of TV across all always-takers, with weights proportional to shares in population
 #' @param continuous_Y (Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.
 #' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
+#' @param max_defier_share (Optional) If specified, up to max_defier_share fraction of the population can be defiers (of any type). Default is zero
+#' @param allow_min_defiers (Optional) If the bound on defiers (max_defier_share) is inconsistent with the data, proceed by allowing the minimum number of defiers compatible with the data. Otherwise, throw an error. Default is FALSE
 #' @export
 
 compute_tv_ats_multiple_m <- function(df,
@@ -22,7 +24,9 @@ compute_tv_ats_multiple_m <- function(df,
                                       at_group = NULL,
                                       w = NULL,
                                       continuous_Y = base::ifelse(is.null(num_Ybins),TRUE,FALSE),
-                                      num_Ybins = NULL){
+                                      num_Ybins = NULL,
+                                      max_defier_share = 0,
+                                      allow_min_defiers = FALSE){
 
   df <- remove_missing_from_df(df = df,
                                d = d,
@@ -69,9 +73,11 @@ compute_tv_ats_multiple_m <- function(df,
                                     FUN = function(i){
                                       base::all(m0_types[i,] <= m1_types[i,])})
 
+    defier_types <- 1-monotonic_types
+
     #Restrict to the types satisfying monotonicity
-    m0_types <- m0_types[monotonic_types,]
-    m1_types <- m1_types[monotonic_types,]
+    #m0_types <- m0_types[monotonic_types,]
+    #m1_types <- m1_types[monotonic_types,]
 
 
     #Compute the marginal distribution of M among D=1
@@ -124,6 +130,41 @@ compute_tv_ats_multiple_m <- function(df,
                                                           nrow = NROW(m0_marginals_constraints_matrix),
                                                           ncol = NROW(mvalues)))
 
+    #Create a matrix (really, vector) that bounds the total defiers share
+    defiers_constraints_matrix <- c(defier_types, rep(0,NROW(mvalues)))
+
+
+    ## We now check feasibility of the program by computing the minimal defier share
+    # consistent with the constraints
+    feasibility_lp <-
+      Rglpk::Rglpk_solve_LP(obj = defiers_constraints_matrix, #obj is sum of defiers shares
+                            mat = rbind(m1_marginals_constraints_matrix,
+                                        m0_marginals_constraints_matrix),
+                            rhs = c(p_m_1,p_m_0),
+                            dir = rep("==", NROW(m1_marginals_constraints_matrix)*2),
+                            max = FALSE
+      )
+
+    if(feasibility_lp$status == 1){
+      warning("Error in checking feasibility. Proceed with caution")
+    }else{
+      min_defier_share <- feasibility_lp$optimum
+
+      if(min_defier_share > max_defier_share){
+        if(allow_min_defiers){
+          max_defier_share <- min_defier_share + 10^(-6) #update max defier share to the optimum plus a small tolerance
+          warning(paste0("The data is incompatible with the specified max_defier_share.
+                           Setting this to the min value compatible with the data:",
+                         max_defier_share))
+        }else{
+          stop(paste0("The data is incompatible with the specified max_defier_share. \n
+                        The specified value is ",
+                      max_defier_share, " but the min compatible with the data is ", min_defier_share))
+        }
+      }
+    }
+
+
 
     ##Create a constraint corresponding to the constraint that max_p_diffs must be greater than or equal to the sum of all complier types that end up at a given mvalue
     #Create a matrix where each row i is a NROW(m1_types) length vector where the jth element indicates if the jth row of m1_types equals the ith row of mvalues and the jth row of m1_types is not exactly equal to the jth row of m0_types
@@ -143,14 +184,23 @@ compute_tv_ats_multiple_m <- function(df,
     complier_constraints_matrix <- base::cbind(complier_constraints_matrix,
                                                diag(NROW(mvalues)))
 
+
     #Combine the constraint matrices
-    constraints_matrix <- base::rbind(m1_marginals_constraints_matrix, m0_marginals_constraints_matrix, complier_constraints_matrix)
+    constraints_matrix <- base::rbind(m1_marginals_constraints_matrix,
+                                      m0_marginals_constraints_matrix,
+                                      complier_constraints_matrix,
+                                      defiers_constraints_matrix)
+
 
     #Combine the constants associated with the matrices
-    d <- c(p_m_1, p_m_0, max_p_diffs)
+    d <- c(p_m_1, p_m_0, max_p_diffs, max_defier_share)
 
     #Specify the direction of the equalities/inequalities
-    dir <- c(rep("==", 2*NROW(m1_marginals_constraints_matrix)), rep(">=", NROW(max_p_diffs)))
+    dir <- c(rep("==", 2*NROW(m1_marginals_constraints_matrix)),
+             rep(">=", NROW(max_p_diffs)),
+             "<=")
+
+
 
     #We do not need to provide a bound argument, since by default Rglpk requires variables to be positive
     # The marginal probabilities constraints imply that the the thetas can't be >1

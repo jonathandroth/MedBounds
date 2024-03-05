@@ -108,4 +108,3 @@ test_that("get error when monotonicity is violated",{
     y = "EL_EGRA_PCA_Index"))
 })
 
-compute_tv_ats_multiple_m(kerwin_data %>% dplyr::mutate(minus_treated = 1-treated), d = "minus_treated", m = "primarily_leblango", y = "EL_EGRA_PCA_Index")
