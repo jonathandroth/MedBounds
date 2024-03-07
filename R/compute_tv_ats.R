@@ -26,7 +26,7 @@ compute_tv_ats <- function(df, d, m, y, w = NULL,
 
   if(!is.null(num_Ybins)){
     yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
-df[[y]] <- yvec
+    df[[y]] <- yvec
   }
 
   dvec <- df[[d]]

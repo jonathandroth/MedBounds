@@ -30,7 +30,8 @@ test_sharp_null_arp_binary_m <- function(df,
                                 alpha = 0.05,
                                 kappa = alpha/10,
                                 use_hybrid = T,
-                                num_Ybins = NULL){
+                                num_Ybins = NULL,
+                                analytic_variance = FALSE){
 
   df <- remove_missing_from_df(df = df,
                                d = d,
@@ -42,13 +43,22 @@ test_sharp_null_arp_binary_m <- function(df,
 
   if(!is.null(num_Ybins)){
     yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
-df[[y]] <- yvec
+    df[[y]] <- yvec
   }
 
+  if (is.null(cluster)) {
+    clustervec <- 1:length(yvec)
+  } else {
+    clustervec <- df[[cluster]]
+  }
   dvec <- df[[d]]
   mvec <- df[[m]]
 
-  yvalues <- unique(yvec)
+  yvalues <- sort(unique(yvec))
+  mvalues <- unique(mvec)
+  my_values <- purrr::cross_df(list(m=mvalues,y=yvalues)) %>%
+    dplyr::arrange(m,y) %>%
+    dplyr::select(y,m)
 
   get_beta.obs <- function(yvec, dvec, mvec) {
     #Get partial density for Y,M=1|D=1
@@ -77,8 +87,8 @@ df[[y]] <- yvec
     if(ats_only){
       beta.obs <- c(p_y1_1 - p_y1_0)
     }else{
-      beta.obs <- c(p_y1_1 - p_y1_0,
-                    p_y0_0 - p_y0_1)
+      beta.obs <- c(p_y0_0 - p_y0_1,
+                    p_y1_1 - p_y1_0)
 
     }
     return(beta.obs)
@@ -99,8 +109,23 @@ df[[y]] <- yvec
                                                      return_df = F)
 
   # Get variance matrix of the beta.obs bootsraps
-  sigma.obs <- stats::cov(base::Reduce(base::rbind,
-                                       beta.obs_list))
+
+  if (analytic_variance) {
+    #Calculate the analytic variance
+    sigma.obs <- analytic_variance(yvec = yvec,
+                                   dvec = dvec,
+                                   mvec = mvec,
+                                   my_values = my_values,
+                                   inequalities_only = TRUE,
+                                   clustervec = clustervec,
+                                   exploit_binary_m = TRUE)
+    
+  } else {
+    sigma.obs <- stats::cov(base::Reduce(base::rbind,
+                                         beta.obs_list))
+  }
+  ## sigma.obs <- stats::cov(base::Reduce(base::rbind,
+  ##                                      beta.obs_list))
 
   #Get the beta.obs using actual data
   beta.obs <- get_beta.obs(yvec, dvec, mvec)

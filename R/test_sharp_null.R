@@ -435,7 +435,7 @@ test_sharp_null <- function(df,
     }
 
     if(method == "CS"){
-
+      
       # We have beta - C_Z delta <= d_Z
       # C_Z = A; d_Z = 0
       # We want to define B_Z and m so that var(m) has full rank
@@ -444,7 +444,7 @@ test_sharp_null <- function(df,
       ## Later, convert in C * delta <= m for to make use of the replication package
       C_Z <- A
       d_Z <- 0
-
+      
 
       if (min(base::eigen(sigma, only.values = T)$values) < 1e-08){
 
@@ -1038,7 +1038,7 @@ get_beta.obs_fn <- function(yvec, dvec, mvec, inequalities_only,
 
 #Function to get the IFs for beta_obs and its subcomponents
 get_IFs <- function(yvec, dvec, mvec, my_values, mvalues = unique(my_values$m),
-                    inequalities_only = T){
+                    inequalities_only = T, exploit_binary_m = FALSE){
   n <- length(yvec)
   n0 <- sum(dvec == 0)
   n1 <- sum(dvec == 1)
@@ -1124,6 +1124,12 @@ get_IFs <- function(yvec, dvec, mvec, my_values, mvalues = unique(my_values$m),
       p_ym_1_centered_IFs - p_ym_0_centered_IFs)
   }
 
+  if (exploit_binary_m) {
+    num_yvals <- length(unique(yvec))
+    return(list(beta.obs_centered_IFs = cbind((p_ym_0_centered_IFs - p_ym_1_centered_IFs)[,1:num_yvals],
+    (p_ym_1_centered_IFs - p_ym_0_centered_IFs)[,(num_yvals+1):(2*num_yvals)])))
+  }
+
 
   return(list(beta.obs_noncentered_IFs = beta.obs_noncentered_IFs,
               beta.obs_centered_IFs = beta.obs_centered_IFs,
@@ -1141,14 +1147,15 @@ get_IFs <- function(yvec, dvec, mvec, my_values, mvalues = unique(my_values$m),
 
 analytic_variance <-
   function(yvec, dvec, mvec, clustervec = seq(from = 1, to = length(yvec)), my_values, mvalues = unique(my_values$m),
-           inequalities_only){
+           inequalities_only, exploit_binary_m = FALSE){
 
     IFs <- get_IFs(yvec = yvec,
                    dvec = dvec,
                    mvec = mvec,
                    my_values = my_values,
                    mvalues = mvalues,
-                   inequalities_only = inequalities_only)$beta.obs_centered_IFs
+                   inequalities_only = inequalities_only,
+                   exploit_binary_m = exploit_binary_m)$beta.obs_centered_IFs
 
     #Sum the IFs within cluster
     IFs_clustered <- base::rowsum(x = IFs,

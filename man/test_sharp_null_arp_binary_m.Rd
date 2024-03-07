@@ -17,7 +17,8 @@ test_sharp_null_arp_binary_m(
   alpha = 0.05,
   kappa = alpha/10,
   use_hybrid = T,
-  num_Ybins = NULL
+  num_Ybins = NULL,
+  analytic_variance = FALSE
 )
 }
 \arguments{

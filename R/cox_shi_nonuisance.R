@@ -52,7 +52,7 @@ cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05){
   # Then we add Y'Sigma^{-1} Y to the minimum
 
   qp <-
-  quadprog::solve.QP(Dmat = 2*sigmaInv,
+  quadprog::solve.QP(Dmat = 2 * sigmaInv,
                      dvec = 2 * sigmaInv %*% Y,
                      Amat = -t(A),
                      bvec = -b)

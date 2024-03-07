@@ -20,6 +20,7 @@ test_sharp_null_toru <- function(df, d, m, y, B = 500, alpha = .05, num_Ybins = 
 
   yvec <- df[[y]]
 
+  num_Ybins <- NULL
   if(!is.null(num_Ybins)){
     yvec <- discretize_y(yvec = yvec, numBins = num_Ybins)
     df[[y]] <- yvec
