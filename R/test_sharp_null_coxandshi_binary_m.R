@@ -122,10 +122,7 @@ test_sharp_null_coxandshi_binary_m <- function(df,
                                    clustervec = clustervec,
                                    exploit_binary_m = TRUE)
 
-    ## sigma.obs <- cbind(rbind(sigma.obs[(num_Ybins+1):(2 * num_Ybins), (num_Ybins+1):(2 * num_Ybins)],
-    ##                          sigma.obs[1:num_Ybins, (num_Ybins+1):(2 * num_Ybins)]),
-    ##                    rbind(sigma.obs[(num_Ybins+1):(2 * num_Ybins), 1:num_Ybins],
-    ##                          sigma.obs[1:num_Ybins, 1:num_Ybins]))
+
     if (print_both_var) {
       sigma.obs_boot <- stats::cov(base::Reduce(base::rbind,
                                                 beta.obs_list))
