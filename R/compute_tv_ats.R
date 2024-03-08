@@ -245,6 +245,12 @@ compute_partial_densities_and_shares <-
 get_density_fn <- function(x,...){
 
     dens <- stats::density(x=x,...)
+
+    if("weights" %in% names(list(...))){
+      warning("You are using weights with the continuous_Y option.
+              R is weird about weighted densities, so this may not give you what you want.
+              Try discretizing the outcome using num_Ybins instead.")
+    }
     #Create a function that returns the density at any point
     # Return 0 if outside of range of dens$x
     # Otherwise, return the density at the largest pt in dens$x below y

@@ -85,7 +85,7 @@ compute_tv_ats_multiple_m <- function(df,
       mdf1 <- mdf[dvec ==1,]
       M_equals_mvalue <- sapply(1:NROW(mdf1), function(i){all(mdf1[i,]==mvalue)} )
       return(stats::weighted.mean( x = M_equals_mvalue,
-                                   weights = wvec[dvec == 1]/sum(wvec[dvec == 1])))
+                                   w = wvec[dvec == 1]/sum(wvec[dvec == 1])))
     }
 
     p_m_1 <- base::apply(mvalues,1, p_m_1_fn)
@@ -95,7 +95,7 @@ compute_tv_ats_multiple_m <- function(df,
       mdf0 <- mdf[dvec ==0,]
       M_equals_mvalue <- sapply(1:NROW(mdf0), function(i){all(mdf0[i,]==mvalue)} )
       return(stats::weighted.mean( x = M_equals_mvalue,
-                                   weights = wvec[dvec == 0]/sum(wvec[dvec == 0])))
+                                   w = wvec[dvec == 0]/sum(wvec[dvec == 0])))
     }
 
     p_m_0 <- base::apply(mvalues,1, p_m_0_fn)
@@ -411,10 +411,10 @@ compute_max_p_difference <- function(dvec, mdf, yvec, wvec=NULL,
 
     #Compute probability of M=mvalue among D=1 units
     p_m_1 <- stats::weighted.mean( x = mindex[dvec == 1],
-                                   weights = wvec)
+                                   w = wvec[dvec == 1])
 
     p_m_0 <- stats::weighted.mean( x = mindex[dvec == 0],
-                                   weights = wvec)
+                                   w = wvec[dvec == 0])
 
     if(continuous_Y == TRUE){
     #If continuous Compute integral of max{p_m_1*dens_y_1, p_m_0*dens_y_0} over y
