@@ -24,6 +24,7 @@
 #' @param analytic_variance If TRUE, we use the analytic formula for the variance, rather than a bootstrap. Available if method if ARP or CS. Default is FALSE
 #' @param defiers_share Bound on the proportion of defiers in the population. Default is 0 which indicates that the monotonicity constraint is imposed.
 #' @param new_dof_CS Use the new degrees of freedom formula for Cox and Shi? Default is FALSE.
+#' @param use_binary If TRUE, uses ARP and CS implementation that exploits the fact that there are no nuisance parameters when the mediator is binary
 #' @export
 #'
 test_sharp_null <- function(df,
@@ -46,12 +47,49 @@ test_sharp_null <- function(df,
                             use_nc = FALSE,
                             analytic_variance = FALSE,
                             defiers_share = 0,
-                            new_dof_CS = FALSE){
+                            new_dof_CS = FALSE,
+                            use_binary = FALSE){
 
+  if (use_binary) {
+    if (method == "ARP") {
+      result <- test_sharp_null_arp_binary_m(df,
+                                             d,
+                                             m,
+                                             y,
+                                             ordering = ordering,
+                                             B = B,
+                                             cluster = cluster,
+                                             weight.matrix = weight.matrix,
+                                             alpha = alpha,
+                                             kappa = hybrid_kappa,
+                                             use_hybrid = T,
+                                             num_Ybins = num_Ybins,
+                                             analytic_variance = analytic_variance)
+      return(result)
+      
+    } else if (method == "CS") {
+      result <- test_sharp_null_coxandshi_binary_m(df,
+                                                   d,
+                                                   m,
+                                                   y,
+                                                   ordering = ordering,
+                                                   B = B,
+                                                   cluster = cluuter,
+                                                   weight.matrix = weight.matrix,
+                                                   alpha = alpha,
+                                                   kappa = hybrid_kappa,
+                                                   use_hybrid = T,
+                                                   num_Ybins = num_Ybins,
+                                                   analytic_variance = analytic_variance)
+      return(result)
+    } else {
+      stop("Method must be either ARP or CS if use_binary = TRUE")
+    }
+  }
+  
   ## Process the inputted df ----
-
+  
   # Remove missing values
-
   df <- remove_missing_from_df(df = df,
                                d = d,
                                m = m,

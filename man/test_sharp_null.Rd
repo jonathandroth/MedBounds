@@ -25,7 +25,8 @@ test_sharp_null(
   use_nc = FALSE,
   analytic_variance = FALSE,
   defiers_share = 0,
-  new_dof_CS = FALSE
+  new_dof_CS = FALSE,
+  use_binary = FALSE
 )
 }
 \arguments{
@@ -71,6 +72,8 @@ support}
 \item{defiers_share}{Bound on the proportion of defiers in the population. Default is 0 which indicates that the monotonicity constraint is imposed.}
 
 \item{new_dof_CS}{Use the new degrees of freedom formula for Cox and Shi? Default is FALSE.}
+
+\item{use_binary}{If TRUE, uses ARP and CS implementation that exploits the fact that there are no nuisance parameters when the mediator is binary}
 }
 \description{
 This function tests the sharp null that Y(1,m) = Y(0,m). The
