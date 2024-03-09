@@ -12,7 +12,9 @@ compute_tv_ats_multiple_m(
   at_group = NULL,
   w = NULL,
   continuous_Y = base::ifelse(is.null(num_Ybins), TRUE, FALSE),
-  num_Ybins = NULL
+  num_Ybins = NULL,
+  max_defier_share = 0,
+  allow_min_defiers = FALSE
 )
 }
 \arguments{
@@ -34,6 +36,10 @@ the weighted average of TV across all always-takers, with weights proportional t
 \item{continuous_Y}{(Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.}
 
 \item{num_Ybins}{(Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)}
+
+\item{max_defier_share}{(Optional) If specified, up to max_defier_share fraction of the population can be defiers (of any type). Default is zero}
+
+\item{allow_min_defiers}{(Optional) If the bound on defiers (max_defier_share) is inconsistent with the data, proceed by allowing the minimum number of defiers compatible with the data. Otherwise, throw an error. Default is FALSE}
 }
 \description{
 Computes  a lower bound on the TV distance btwn Y(1,m) and Y(0,m) for always takers
