@@ -4,7 +4,7 @@
 #' @param m Name of the mediator variable
 #' @param y Name of the outcome variable
 #' @param w (Optional) Name of weighting variable. If null, equal weights are used
-
+#' @export
 remove_missing_from_df <- function(df, d, m, y, w = NULL){
 
   missing_d <- is.na(df[[d]])
@@ -13,7 +13,7 @@ remove_missing_from_df <- function(df, d, m, y, w = NULL){
 
   df <- df[!(missing_d | missing_m | missing_y), ]
 
-  if(!is.null(w)){
+  if (!is.null(w)) {
     missing_w <- is.na(df[[w]])
     df <- df[!missing_w, ]
   }

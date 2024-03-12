@@ -49,7 +49,15 @@ test_sharp_null <- function(df,
                             defiers_share = 0,
                             new_dof_CS = FALSE,
                             use_binary = FALSE){
+ 
+  ## Process the inputted df ----  
+  # Remove missing values
+  df <- remove_missing_from_df(df = df,
+                               d = d,
+                               m = m,
+                               y = y)
 
+  ## Pass to more efficient algorithm when M is binary
   if (use_binary) {
     if (method == "ARP") {
       result <- test_sharp_null_arp_binary_m(df,
@@ -74,7 +82,7 @@ test_sharp_null <- function(df,
                                                    y,
                                                    ordering = ordering,
                                                    B = B,
-                                                   cluster = cluuter,
+                                                   cluster = cluster,
                                                    weight.matrix = weight.matrix,
                                                    alpha = alpha,
                                                    kappa = hybrid_kappa,
@@ -82,19 +90,16 @@ test_sharp_null <- function(df,
                                                    num_Ybins = num_Ybins,
                                                    analytic_variance = analytic_variance)
       return(result)
+    } else if (method == "toru") {
+      result <- test_sharp_null_toru(df, d, m, y, B = B, alpha = alpha,
+                                     num_Ybins = NULL)
+      
+      return(result)
     } else {
       stop("Method must be either ARP or CS if use_binary = TRUE")
     }
   }
   
-  ## Process the inputted df ----
-  
-  # Remove missing values
-  df <- remove_missing_from_df(df = df,
-                               d = d,
-                               m = m,
-                               y = y)
-
   # Sample size
   n <- nrow(df)
 
@@ -1164,8 +1169,8 @@ get_IFs <- function(yvec, dvec, mvec, my_values, mvalues = unique(my_values$m),
 
   if (exploit_binary_m) {
     num_yvals <- length(unique(yvec))
-    return(list(beta.obs_centered_IFs = cbind((p_ym_0_centered_IFs - p_ym_1_centered_IFs)[,1:num_yvals],
-    (p_ym_1_centered_IFs - p_ym_0_centered_IFs)[,(num_yvals+1):(2*num_yvals)])))
+    return(list(beta.obs_centered_IFs =
+                  cbind((p_ym_0_centered_IFs - p_ym_1_centered_IFs)[,1:num_yvals], (p_ym_1_centered_IFs - p_ym_0_centered_IFs)[,(num_yvals+1):(2*num_yvals)])))
   }
 
 
