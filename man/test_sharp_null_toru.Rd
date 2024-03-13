@@ -4,7 +4,16 @@
 \alias{test_sharp_null_toru}
 \title{Hypothesis test for the sharp null via Kitagawa (2015)}
 \usage{
-test_sharp_null_toru(df, d, m, y, B = 500, alpha = 0.05, num_Ybins = NULL)
+test_sharp_null_toru(
+  df,
+  d,
+  m,
+  y,
+  B = 500,
+  alpha = 0.05,
+  num_Ybins = NULL,
+  cluster = NULL
+)
 }
 \arguments{
 \item{df}{A data frame}

@@ -92,7 +92,7 @@ test_sharp_null <- function(df,
       return(result)
     } else if (method == "toru") {
       result <- test_sharp_null_toru(df, d, m, y, B = B, alpha = alpha,
-                                     num_Ybins = NULL)
+                                     num_Ybins = NULL, cluster = cluster)
       
       return(result)
     } else {
