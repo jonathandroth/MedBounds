@@ -108,3 +108,24 @@ test_that("get error when monotonicity is violated",{
     y = "EL_EGRA_PCA_Index"))
 })
 
+
+
+test_that("breakdown_defier_share matches compute_min_defiers_binaryM when a binary M is provided", {
+  #Use the fn for the binary M case
+  breakdown_binary <-
+    MedBounds::compute_min_defiers_binaryM(df = MedBounds::burstzyn_data,
+                                           d = "condition2",
+                                           m = "signed_up_number",
+                                           y = "applied_out_fl",
+                                           num_Ybins = 5)$defier_lb
+
+  breakdown_multiple <-
+    MedBounds:::breakdown_defier_share(df = MedBounds::burstzyn_data,
+                                           d = "condition2",
+                                           m = "signed_up_number",
+                                           y = "applied_out_fl",
+                                           num_Ybins = 5)
+
+  #Check that the two are equal
+  expect_equal(breakdown_binary, breakdown_multiple, tolerance = 0.01)
+})

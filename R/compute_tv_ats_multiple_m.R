@@ -15,6 +15,7 @@
 #' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @param max_defier_share (Optional) If specified, up to max_defier_share fraction of the population can be defiers (of any type). Default is zero
 #' @param allow_min_defiers (Optional) If the bound on defiers (max_defier_share) is inconsistent with the data, proceed by allowing the minimum number of defiers compatible with the data. Otherwise, throw an error. Default is FALSE
+#' @param return_min_defiers (Optional) If true, the function returns the minimum number of defiers consistent with the data rather than the TV bounds
 #' @export
 
 compute_tv_ats_multiple_m <- function(df,
@@ -26,7 +27,8 @@ compute_tv_ats_multiple_m <- function(df,
                                       continuous_Y = base::ifelse(is.null(num_Ybins),TRUE,FALSE),
                                       num_Ybins = NULL,
                                       max_defier_share = 0,
-                                      allow_min_defiers = FALSE){
+                                      allow_min_defiers = FALSE,
+                                      return_min_defiers = FALSE){
 
   df <- remove_missing_from_df(df = df,
                                d = d,
@@ -148,7 +150,11 @@ compute_tv_ats_multiple_m <- function(df,
     if(feasibility_lp$status == 1){
       warning("Error in checking feasibility. Proceed with caution")
     }else{
+
       min_defier_share <- feasibility_lp$optimum
+
+      #Return the min defier share if specified
+      if(return_min_defiers){return(min_defier_share)}
 
       if(min_defier_share > max_defier_share){
         if(allow_min_defiers){
@@ -445,3 +451,81 @@ compute_max_p_difference <- function(dvec, mdf, yvec, wvec=NULL,
              max_p_diffs = max_p_diffs))
 }
 
+
+
+#' @title Finds the minimum number of defiers compatible with the sharp null
+#'@description This function finds the minimum value of max_defier_share such that compute_tv_ats_multiple_m returns zero
+#' @param df A data frame
+#' @param d Name of the treatment variable in the df
+#' @param m Vector of the mediator variable
+#' @param y Name of the outcome variable
+#' @param w (Optional) Name of weighting variable. If null, equal weights are used
+#' @param at_group (Optional) Value of m specifying which always-takers to compute lower bounds of TV for.
+#' If at_group is specified, then we compute a lower bound on TV between Y(1,at_group) and Y(0,at_group) for
+#' ATs who have M(1)=M(0)=at_group. If at_group is null (the default), we compute a lower bound on
+#' the weighted average of TV across all always-takers, with weights proportional to shares in population
+#' @param continuous_Y (Optional) Whether Y should be treated as continuous, in which case kernel density is used, or discrete. Default is TRUE.
+#' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
+
+breakdown_defier_share <- function(df,
+                                   d,
+                                   m,
+                                   y,
+                                   at_group = NULL,
+                                   w = NULL,
+                                   continuous_Y = base::ifelse(is.null(num_Ybins),TRUE,FALSE),
+                                   num_Ybins = NULL){
+
+  tol <- 10^(-4)
+
+  #Function for computing the lb as a function of max_defier_share
+  lb_fn <- function(max_defier_share){
+    min_tv <-
+    compute_tv_ats_multiple_m(df = df,
+                              d = d,
+                              m = m,
+                              y = y ,
+                              at_group = at_group,
+                              w = w,
+                              continuous_Y = continuous_Y,
+                              num_Ybins = num_Ybins,
+                              max_defier_share = max_defier_share)
+
+    return(min_tv)
+  }
+
+  # Compute the min defier share compatible with the data
+  min_compatible_defiers <-     compute_tv_ats_multiple_m(df = df,
+                                                          d = d,
+                                                          m = m,
+                                                          y = y ,
+                                                          at_group = at_group,
+                                                          w = w,
+                                                          continuous_Y = continuous_Y,
+                                                          num_Ybins = num_Ybins,
+                                                          max_defier_share = max_defier_share,
+                                                          return_min_defiers = TRUE)
+
+
+
+  #Check if lb is positive under min number of defiers
+    #If not, return min number of defiers
+  if(lb_fn(min_compatible_defiers) < tol){return(min_compatible_defiers)}
+
+  #Check if lb is positive with max defier share of 1
+    #If so, return Inf
+  if(lb_fn(1) > tol){return(Inf)}
+
+  #Otherwise, we have a zero somewhere between the min compatible defiers and 1
+  # We find it using binary search
+  ub <- 1
+  lb <- min_compatible_defiers
+  while(ub - lb > tol){
+    mid <- (ub + lb )/2
+    val <- lb_fn(mid)
+
+    if(val > tol){lb <- mid}
+    else{ub <- mid}
+  }
+  return(ub)
+}
