@@ -452,7 +452,7 @@ compute_max_p_difference <- function(dvec, mdf, yvec, wvec=NULL,
 }
 
 
-
+#' @export
 #' @title Finds the minimum number of defiers compatible with the sharp null
 #'@description This function finds the minimum value of max_defier_share such that compute_tv_ats_multiple_m returns zero
 #' @param df A data frame
