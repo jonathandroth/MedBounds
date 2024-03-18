@@ -10,7 +10,7 @@
 #' @param alpha Significance level. Default value is .05
 #' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @export
-test_sharp_null_toru <- function(df, d, m, y, B = 500, alpha = .05, num_Ybins = NULL) {
+test_sharp_null_toru <- function(df, d, m, y, B = 500, alpha = .05, num_Ybins = NULL, cluster = NULL) {
   
   df <- remove_missing_from_df(df = df,
                                d = d,
@@ -29,9 +29,14 @@ test_sharp_null_toru <- function(df, d, m, y, B = 500, alpha = .05, num_Ybins = 
   dvec <- df[[d]]
   mvec <- df[[m]]
 
+  if (is.null(cluster)) {
+    clustervec <- NULL
+  } else {
+    clustervec <- df[[cluster]]
+  }
   pval <- mergedZtest(yvec, mvec, dvec, c(0,1),
                       xis = .07,
-                      B = 500, alpha = alpha)$pvals
+                      B = 500, alpha = alpha, clustervec = clustervec)$pvals
   
   return(list(reject = (pval < alpha)))
   
@@ -47,18 +52,38 @@ boot_compute_stat_multi <- function(boot_dist, m, lambda, K, L0, L1, limit, xis,
   
 }
 
-boot_stats_multi <- function(dists, m, lambda, K, xis, xiN, B, limit){
-  
-  L0 <- dim(dists$P_D0)[1]
-  L1 <- dim(dists$P_D1)[1]
-  
-  YD_dist <- gen_YD_dist(dists, lambda, K)
-  
+boot_stats_multi <- function(dists, m, lambda, K, xis, xiN, B, limit, Z_order, data = NULL){
+
   boot_stats <- matrix(0,xiN,B)
   
-  for (b in 1:B){
-    boot_dist <- gen_boot_dist(YD_dist, m, K, L0, L1)
-    boot_stats[, b] <- boot_compute_stat_multi(boot_dist, m, lambda, K, L0, L1, limit, xis, xiN)
+  if (is.null(data[["cluster"]])) {
+
+    L0 <- dim(dists$P_D0)[1]
+    L1 <- dim(dists$P_D1)[1]
+    
+    YD_dist <- gen_YD_dist(dists, lambda, K)
+      
+    for (b in 1:B){
+      boot_dist <- gen_boot_dist(YD_dist, m, K, L0, L1)
+      boot_stats[, b] <- boot_compute_stat_multi(boot_dist, m, lambda, K, L0, L1, limit, xis, xiN)
+    }
+    
+  } else {
+
+    
+    for (b in 1:B){
+      data_b <- get_bootstrap_draw_clustered(data, "Z", "D", "Y",
+                                             cluster = "cluster",
+                                             fix_n1 = F)
+      
+      m_b <- rep(0, K)
+      for (k in 1:K){
+        m_b[k] <- nrow(subset(data, data_b$Z == Z_order[k]))
+      }
+      dists_b <- gen_dists_multi(data_b, m_b, Z_order, K)
+      boot_stats[, b] <- compute_stat_multi(dists_b, m_b, lambda, K, limit, xis, xiN)
+    }
+
   }
   
   return(boot_stats)
@@ -206,9 +231,9 @@ gen_boot_dist <- function(YD_dist, m , K, L0, L1){
 gen_dists_multi <-function(data, m, Z_order, K){
   
   YZ_D0 <- subset(data, data$D == 0)
-  YZ_D0 <- YZ_D0[order(YZ_D0[, 1]), ]
+  YZ_D0 <- YZ_D0[order(YZ_D0$Y), ]
   YZ_D1 <- subset(data, data$D == 1)
-  YZ_D1 <- YZ_D1[order(YZ_D1[, 1]), ]
+  YZ_D1 <- YZ_D1[order(YZ_D1$Y), ]
   
   Y0_grid <- unique(YZ_D0$Y)
   Y1_grid <- unique(YZ_D1$Y)
@@ -257,9 +282,11 @@ mergedZtest <- function(Y, D, Z, Z_order,
                                 sqrt(0.05 * (1 - 0.05)),
                                 sqrt(0.1 * (1 - 0.1)),
                                 1),
-                        B = 500, alpha = c(0.1, 0.05, 0.01)){
+                        B = 500, alpha = c(0.1, 0.05, 0.01),
+                        clustervec = NULL){
   
   data <- data.frame("Y" = Y, "D" = D, "Z" = Z)
+  if (!is.null(clustervec)) data[["cluster"]] <- clustervec
   data <- na.omit(data)
   
   limit <- (10 ^ 4)
@@ -278,8 +305,9 @@ mergedZtest <- function(Y, D, Z, Z_order,
   dists <- gen_dists_multi(data, m, Z_order, K)
 
   Tw <- compute_stat_multi(dists, m, lambda, K, limit, xis, xiN)
-  
-  boot_stats <- boot_stats_multi(dists, m, lambda, K, xis, xiN, B, limit)
+
+  boot_stats <- boot_stats_multi(dists, m, lambda, K, xis, xiN, B, limit, Z_order = Z_order,
+                                 data = data)
   
   pval <- rowSums(Tw <= boot_stats) / B
   cvs <- apply(boot_stats, 1, quantile, probs = (1 - alpha))
