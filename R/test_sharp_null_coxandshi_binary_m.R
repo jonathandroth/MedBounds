@@ -17,6 +17,7 @@
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options
 #'   are "diag", "avar", "identity." Defaults is "diag" as in FSST.
 #'  @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
+#'  @param refinement (Optional) If TRUE, use the refined Cox & Shi test (rCC rather than CC). Default is FALSE.
 #' @export
 test_sharp_null_coxandshi_binary_m <- function(df,
                                          d,
@@ -32,6 +33,7 @@ test_sharp_null_coxandshi_binary_m <- function(df,
                                          use_hybrid = T,
                                          num_Ybins = NULL,
                                          analytic_variance = FALSE,
+                                         refinement = FALSE,
                                          print_both_var = FALSE){
 
 
@@ -52,7 +54,7 @@ test_sharp_null_coxandshi_binary_m <- function(df,
   } else {
     clustervec <- df[[cluster]]
   }
-  
+
   dvec <- df[[d]]
   mvec <- df[[m]]
 
@@ -62,7 +64,7 @@ test_sharp_null_coxandshi_binary_m <- function(df,
   my_values <- purrr::cross_df(list(m=mvalues,y=yvalues)) %>%
     dplyr::arrange(m,y) %>%
     dplyr::select(y,m)
-  
+
   get_beta.obs <- function(yvec, dvec, mvec) {
     #Get partial density for Y,M=1|D=1
     p_y1_1 <- purrr::map_dbl(.x = 1:length(yvalues),
@@ -133,7 +135,7 @@ test_sharp_null_coxandshi_binary_m <- function(df,
     sigma.obs <- stats::cov(base::Reduce(base::rbind,
                                        beta.obs_list))
   }
-  
+
 
   #Get the beta.obs using actual data
   beta.obs <- get_beta.obs(yvec, dvec, mvec)
@@ -141,6 +143,7 @@ test_sharp_null_coxandshi_binary_m <- function(df,
   #Run Cox and Shi test
   coxandshi <- cox_shi_nonuisance(Y = -beta.obs,
                                   sigma = sigma.obs,
-                                  alpha = alpha)
+                                  alpha = alpha,
+                                  refinement = refinement)
   return(coxandshi)
 }

@@ -481,6 +481,7 @@ breakdown_defier_share <- function(df,
   #Function for computing the lb as a function of max_defier_share
   lb_fn <- function(max_defier_share){
     min_tv <-
+    base::suppressWarnings(
     compute_tv_ats_multiple_m(df = df,
                               d = d,
                               m = m,
@@ -489,8 +490,11 @@ breakdown_defier_share <- function(df,
                               w = w,
                               continuous_Y = continuous_Y,
                               num_Ybins = num_Ybins,
-                              max_defier_share = max_defier_share)
+                              max_defier_share = max_defier_share))
 
+    #If the lb on ATs is zero, compute_tv_ats_multiple_m returns zero
+    #For our purposes, we treat this as a zero
+    if(is.nan(min_tv)){min_tv <- 0}
     return(min_tv)
   }
 

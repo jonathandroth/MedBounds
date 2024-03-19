@@ -1,8 +1,8 @@
 #' @title Run the Cox and Shi test for the null E[Y] <= 0 for Y~N(mu,Sigma)
-#' @param Y 
-#' @param sigma 
-#' @param alpha 
-cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05){
+#' @param Y
+#' @param sigma
+#' @param alpha
+cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05, refinement = FALSE){
 
   if(min(base::eigen(sigma, only.values = T)$values) < 10^-6){
     #If sigma is not full-rank we extract the full rank component
@@ -31,7 +31,7 @@ cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05){
 
     #Find constant difference between Y and A Xstar
     #This becomes the constant in your constraints, i.e. A mu <= b
-    b <- A %*% Xstar - Y 
+    b <- A %*% Xstar - Y
 
     Y <- Xstar
     sigma <- V_Xstar
@@ -64,18 +64,38 @@ cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05){
 
   chisquared_df <- length(binding_index)
 
+
   if (chisquared_df == 0) {
     return(list(reject = 0,
                 test_stat = test_stat,
                 cv = 0,
                 pval = 1))
-  } else {
+  } else{
+
+    if( (!refinement) | (length(binding_index) != 1) ){
+
+
     cv <- qchisq(p = 1-alpha,
                  df = length(binding_index))
 
     pval <- pchisq(q = test_stat,
                    lower.tail = FALSE,
                    df = length(binding_index))
+
+    }else{
+      is_binding_vec <- abs(A %*% qp$solution - b)<10^-5
+      binding_norm <- as.numeric( sqrt( t(is_binding_vec) %*% (A %*% sigma %*% t(A)) %*% is_binding_vec ) )
+      numerator <- -binding_norm * (A %*% qp$solution - b)
+      denominator <- binding_norm * sqrt( diag(A %*% sigma %*% t(A)) ) - (A %*% sigma %*% t(A)) %*% is_binding_vec
+      tauhat <- min( numerator[!is_binding_vec] / denominator[!is_binding_vec] )
+      betahat <- 2* alpha * stats::pnorm(q = tauhat)
+      cv <- stats::qchisq(p = 1-betahat,
+                          df = length(binding_index))
+
+      pval <- pchisq(q = test_stat,
+                     lower.tail = FALSE,
+                     df = length(binding_index)) / (2 * stats::pnorm(q = tauhat))
+    }
 
     return(list(reject = test_stat > cv,
                 test_stat = test_stat,
