@@ -26,7 +26,8 @@ test_sharp_null(
   analytic_variance = FALSE,
   defiers_share = 0,
   new_dof_CS = FALSE,
-  use_binary = FALSE
+  use_binary = FALSE,
+  refinement = FALSE
 )
 }
 \arguments{

@@ -48,7 +48,8 @@ test_sharp_null <- function(df,
                             analytic_variance = FALSE,
                             defiers_share = 0,
                             new_dof_CS = FALSE,
-                            use_binary = FALSE){
+                            use_binary = FALSE,
+                            refinement = FALSE){
  
   ## Process the inputted df ----  
   # Remove missing values
@@ -88,7 +89,8 @@ test_sharp_null <- function(df,
                                                    kappa = hybrid_kappa,
                                                    use_hybrid = T,
                                                    num_Ybins = num_Ybins,
-                                                   analytic_variance = analytic_variance)
+                                                   analytic_variance = analytic_variance,
+                                                   refinement = refinement)
       return(result)
     } else if (method == "toru") {
       result <- test_sharp_null_toru(df, d, m, y, B = B, alpha = alpha,
