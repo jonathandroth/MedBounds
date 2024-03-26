@@ -4,7 +4,7 @@
 \alias{cox_shi_nonuisance}
 \title{Run the Cox and Shi test for the null E[Y] <= 0 for Y~N(mu,Sigma)}
 \usage{
-cox_shi_nonuisance(Y, sigma, alpha = 0.05)
+cox_shi_nonuisance(Y, sigma, alpha = 0.05, refinement = FALSE)
 }
 \arguments{
 \item{Y}{}
@@ -12,6 +12,8 @@ cox_shi_nonuisance(Y, sigma, alpha = 0.05)
 \item{sigma}{}
 
 \item{alpha}{}
+
+\item{refinement}{}
 }
 \description{
 Run the Cox and Shi test for the null E[Y] <= 0 for Y~N(mu,Sigma)

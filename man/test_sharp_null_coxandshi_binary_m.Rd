@@ -19,6 +19,7 @@ test_sharp_null_coxandshi_binary_m(
   use_hybrid = T,
   num_Ybins = NULL,
   analytic_variance = FALSE,
+  refinement = FALSE,
   print_both_var = FALSE
 )
 }
@@ -44,7 +45,8 @@ ordering is used.}
 
 \item{weight.matrix}{Weight matrix used to implement FSST. Possible options
  are "diag", "avar", "identity." Defaults is "diag" as in FSST.
-@param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)}
+@param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
+@param refinement (Optional) If TRUE, use the refined Cox & Shi test (rCC rather than CC). Default is FALSE.}
 }
 \description{
 This function tests the sharp null of Y(1,m) = Y(0,m). The
