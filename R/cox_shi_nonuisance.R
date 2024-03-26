@@ -52,10 +52,10 @@ cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05, refinement = FALSE){
   # Then we add Y'Sigma^{-1} Y to the minimum
 
   qp <-
-  quadprog::solve.QP(Dmat = 2 * sigmaInv,
-                     dvec = 2 * sigmaInv %*% Y,
-                     Amat = -t(A),
-                     bvec = -b)
+    quadprog::solve.QP(Dmat = 2 * sigmaInv,
+                       dvec = 2 * sigmaInv %*% Y,
+                       Amat = -t(A),
+                       bvec = -b)
 
   test_stat <- qp$value + t(Y) %*% sigmaInv %*% Y
 
@@ -75,20 +75,29 @@ cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05, refinement = FALSE){
     if( (!refinement) | (length(binding_index) != 1) ){
 
 
-    cv <- qchisq(p = 1-alpha,
-                 df = length(binding_index))
-
-    pval <- pchisq(q = test_stat,
-                   lower.tail = FALSE,
+      cv <- qchisq(p = 1-alpha,
                    df = length(binding_index))
+
+      pval <- pchisq(q = test_stat,
+                     lower.tail = FALSE,
+                     df = length(binding_index))
 
     }else{
       is_binding_vec <- abs(A %*% qp$solution - b)<10^-5
       binding_norm <- as.numeric( sqrt( t(is_binding_vec) %*% (A %*% sigma %*% t(A)) %*% is_binding_vec ) )
       numerator <- -binding_norm * (A %*% qp$solution - b)
       denominator <- binding_norm * sqrt( diag(A %*% sigma %*% t(A)) ) - (A %*% sigma %*% t(A)) %*% is_binding_vec
-      tauhat <- min( numerator[!is_binding_vec] / denominator[!is_binding_vec] )
-      betahat <- 2* alpha * stats::pnorm(q = tauhat)
+
+      nonzerodenom <- which(denominator > 0)
+
+      if(length(nonzerodenom) > 0){
+        tauhat <- min( numerator[!is_binding_vec & nonzerodenom] / pmax(denominator[!is_binding_vec & nonzerodenom] ) )
+        betahat <- 2* alpha * stats::pnorm(q = tauhat)
+      }else{
+        betahat <- alpha
+        tauhat <- 0
+      }
+
       cv <- stats::qchisq(p = 1-betahat,
                           df = length(binding_index))
 
