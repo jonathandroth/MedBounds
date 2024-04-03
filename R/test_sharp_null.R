@@ -92,6 +92,22 @@ test_sharp_null <- function(df,
                                                    analytic_variance = analytic_variance,
                                                    refinement = refinement)
       return(result)
+    } else if (method == "FSST") {
+      result <- test_sharp_null_fsst_binary_m(df,
+                                              d,
+                                              m,
+                                              y,
+                                              ordering = ordering,
+                                              B = B,
+                                              cluster = cluster,
+                                              weight.matrix = weight.matrix,
+                                              alpha = alpha,
+                                              kappa = hybrid_kappa,
+                                              use_hybrid = T,
+                                              num_Ybins = num_Ybins,
+                                              analytic_variance = analytic_variance,
+                                              lambda = lambda)
+      return(result)
     } else if (method == "toru") {
       result <- test_sharp_null_toru(df, d, m, y, B = B, alpha = alpha,
                                      num_Ybins = NULL, cluster = cluster)

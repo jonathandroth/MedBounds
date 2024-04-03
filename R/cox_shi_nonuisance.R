@@ -3,16 +3,16 @@
 #' @param sigma 
 #' @param alpha 
 #' @param refinement 
-cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05, refinement = FALSE){
+cox_shi_nonuisance <- function(Y, sigma, alpha = 0.05, refinement = FALSE, tol = 1e-8){
 
-  if(min(base::eigen(sigma, only.values = T)$values) < 10^-6){
+  if(min(base::eigen(sigma, only.values = T)$values) < tol){
     #If sigma is not full-rank we extract the full rank component
 
     eigendecomp <- eigen(sigma)
     eigenvals <- eigendecomp$values
     eigenvecs <- eigendecomp$vectors
 
-    tol <- 10^-6
+    ## tol <- 10^-6
     positive_indices <- which(eigenvals > tol)
 
     #Create a matrix that selects rows with positive indices
