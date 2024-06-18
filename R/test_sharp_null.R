@@ -48,7 +48,7 @@ test_sharp_null <- function(df,
                             analytic_variance = FALSE,
                             defiers_share = 0,
                             new_dof_CS = FALSE,
-                            use_binary = FALSE,
+                            use_binary = NULL,
                             refinement = FALSE){
  
   ## Process the inputted df ----  
@@ -57,63 +57,52 @@ test_sharp_null <- function(df,
                                d = d,
                                m = m,
                                y = y)
-
+  
+  ## Evaluate whether M is binary
+  binary_M <- n_distinct(df[m]) == 2
+  
+  ## Throw error if M is non-binary but use_binary = TRUE
+  if (!is.null(use_binary)) {
+    if (use_binary == TRUE & binary_M == FALSE) {
+      stop("M is non-binary in data, use_binary cannot be TRUE")
+    }
+  } 
+  else if (is.null(use_binary)) {
+    use_binary = binary_M
+  }
+  
+  ## Print confirmation, can delete this if you prefer
+  message(paste0("It is ", binary_M, " that M in data is binary"))
+  message(paste0("It is ", use_binary, " that binary test is used"))
+  
   ## Pass to more efficient algorithm when M is binary
   if (use_binary) {
-    if (method == "ARP") {
-      result <- test_sharp_null_arp_binary_m(df,
-                                             d,
-                                             m,
-                                             y,
-                                             ordering = ordering,
-                                             B = B,
-                                             cluster = cluster,
-                                             weight.matrix = weight.matrix,
-                                             alpha = alpha,
-                                             kappa = hybrid_kappa,
-                                             use_hybrid = T,
-                                             num_Ybins = num_Ybins,
-                                             analytic_variance = analytic_variance)
+    if (method %in% c("ARP", "CS", "FSST")) {
+      result <- test_sharp_null_binary_m(df,
+                                         d,
+                                         m,
+                                         y,
+                                         method = method,
+                                         ordering = ordering,
+                                         B = B,
+                                         cluster = cluster,
+                                         weight.matrix = weight.matrix,
+                                         alpha = alpha,
+                                         kappa = hybrid_kappa,
+                                         use_hybrid = T,
+                                         num_Ybins = num_Ybins,
+                                         lambda = lambda,
+                                         analytic_variance = analytic_variance,
+                                         refinement = refinement)
       return(result)
-      
-    } else if (method == "CS") {
-      result <- test_sharp_null_coxandshi_binary_m(df,
-                                                   d,
-                                                   m,
-                                                   y,
-                                                   ordering = ordering,
-                                                   B = B,
-                                                   cluster = cluster,
-                                                   weight.matrix = weight.matrix,
-                                                   alpha = alpha,
-                                                   kappa = hybrid_kappa,
-                                                   use_hybrid = T,
-                                                   num_Ybins = num_Ybins,
-                                                   analytic_variance = analytic_variance,
-                                                   refinement = refinement)
-      return(result)
-    } else if (method == "FSST") {
-      result <- test_sharp_null_fsst_binary_m(df,
-                                              d,
-                                              m,
-                                              y,
-                                              ordering = ordering,
-                                              B = B,
-                                              cluster = cluster,
-                                              weight.matrix = weight.matrix,
-                                              alpha = alpha,
-                                              kappa = hybrid_kappa,
-                                              use_hybrid = T,
-                                              num_Ybins = num_Ybins,
-                                              analytic_variance = analytic_variance,
-                                              lambda = lambda)
-      return(result)
-    } else if (method == "toru") {
+    }
+    else if (method == "toru") {
       result <- test_sharp_null_toru(df, d, m, y, B = B, alpha = alpha,
                                      num_Ybins = NULL, cluster = cluster)
       
       return(result)
-    } else {
+    }
+    else {
       stop("Method must be either ARP or CS if use_binary = TRUE")
     }
   }
