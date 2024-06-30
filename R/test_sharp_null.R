@@ -59,7 +59,7 @@ test_sharp_null <- function(df,
                                y = y)
   
   ## Evaluate whether M is binary
-  binary_M <- n_distinct(df[m]) == 2
+  binary_M <- dplyr::n_distinct(df[m]) == 2
   
   ## Throw error if M is non-binary but use_binary = TRUE
   if (!is.null(use_binary)) {
