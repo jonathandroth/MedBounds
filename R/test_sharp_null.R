@@ -129,10 +129,17 @@ test_sharp_null <- function(df,
     df$m <- uni_m
     m <- "m"
   }
-
+  
   #Discretize y if needed
   if(!is.null(num_Ybins)){
     df[[y]] <- discretize_y(yvec = df[[y]], numBins = num_Ybins)
+  } else {
+    continuous_y_flag <- n / length(unique(df[[y]])) <= 30
+    if (continuous_y_flag) {
+      message("Y variable might be continuous. Discretize it by specifying num_Ybins. Default num_Ybins = 5 is used now.")
+      num_Ybins <- 5
+      df[[y]] <- discretize_y(yvec = df[[y]], numBins = num_Ybins)
+    }
   }
 
   yvec <- df[[y]]
@@ -239,7 +246,7 @@ test_sharp_null <- function(df,
     } else {
       beta.obs_FSST <- c(list(beta.obs), beta.obs_list)
     }
-
+    
     lpm <- lpinfer::lpmodel(A.obs = A.obs,
                             A.shp = A.shp,
                             A.tgt = A.tgt,
