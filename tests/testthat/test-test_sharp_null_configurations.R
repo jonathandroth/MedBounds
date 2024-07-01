@@ -25,16 +25,6 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
   # See if the function works for specific methods with specifications
   for(method in methods){
     
-    test_sharp_null_result <- 
-      MedBounds::test_sharp_null(df = testdf,
-                                 d = "treated",
-                                 m = "primarily_leblango",
-                                 y = "EL_EGRA_PCA_Index",
-                                 method = method,
-                                 cluster = cluster)
-    
-    expect_error(test_sharp_null_result, regexp = NA)
-    
     if(method == "FSST"){
       for(weightmat in weightmats){
         test_sharp_null_result <- 
@@ -60,6 +50,7 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
                                    analytic_variance = TRUE) 
       
       expect_error(test_sharp_null_result, regexp = NA)
+      
     }else{
       test_sharp_null_result <- 
         MedBounds::test_sharp_null(df = testdf,
@@ -166,7 +157,4 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
 # }
 
 # total of 46080 combos 
-
-
-
 
