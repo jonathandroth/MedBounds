@@ -7,21 +7,21 @@
 #' @param m Name of the mediator variable(s)
 #' @param y Name of the outcome variable, which is assumed to take a discrete
 #'   support
-#' @param method Method to use. One of "ARP, "CS", "FSST", "CR"
-#' @param ordering A list with length equal to the cardinality of the support of the mediator variable. The name of each element corresponds to a point in the support, and each element is a vector that collects all m values that are less than or equal to this point. If ordering = NULL, the standard ordering is used. If length(m) > 1, then the default is the elementwise ordering.
+#' @param method Method to use. One of "ARP", "CS", "FSST", "CR"
+#' @param ordering A list with length equal to the cardinality of the support of the mediator variable. The name of each element corresponds to a point in the support, and each element is a vector that collects all m values that are less than or equal to this point. If ordering = NULL, the standard ordering is used. If length(m) > 1, then the default is the element-wise ordering.
 #' @param B Bootstrap size, default is 500
 #' @param cluster Cluster for bootstrap
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options are "diag", "avar", "identity." Defaults is "diag" as in FSST.
 #' @param hybrid_kappa The first-stage size value of the ARP hybrid test. If NULL, the ARP conditional (non-hybrid) test is used. Default is alpha/10
 #' @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
 #' @param alpha Significance level. Default is 0.05
-#' @param rearrange Logical variable indicating whether to rearrange the conditional probabilities to obey monotonicity. De
+#' @param rearrange Logical variable indicating whether to rearrange the conditional probabilities to obey monotonicity. Default is FALSE.
 #' @param eps_bar Cho and Russell (2023) truncation parameter
-#' @param enumerate Enumerate vertices for Cox and Shi (2023) implementataion?
+#' @param enumerate Enumerate vertices for Cox and Shi (2023) implementation?
 #' @param fix_n1 Whether the number of treated units (or clusters) should be fixed in the bootstrap
 #' @param lambda Lambda value for FSST. Default is "dd" in which case the "data-driven" lambda recommended by FSST is used. If lambda = "ndd", the non data-driven recommendation is used. See Remark 4.2 of FSST.
 #' @param use_nc If the data is clustered, should FSST use the number of clusters for determining lambda (versus total observations). Default is false.
-#' @param analytic_variance If TRUE, we use the analytic formula for the variance, rather than a bootstrap. Available if method if ARP or CS. Default is FALSE
+#' @param analytic_variance If TRUE, we use the analytic formula for the variance, rather than a bootstrap. Available if method is ARP or CS. Default is FALSE
 #' @param defiers_share Bound on the proportion of defiers in the population. Default is 0 which indicates that the monotonicity constraint is imposed.
 #' @param new_dof_CS Use the new degrees of freedom formula for Cox and Shi? Default is FALSE.
 #' @param use_binary If TRUE, uses ARP and CS implementation that exploits the fact that there are no nuisance parameters when the mediator is binary
