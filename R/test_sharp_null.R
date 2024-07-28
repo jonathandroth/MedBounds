@@ -91,6 +91,7 @@ test_sharp_null <- function(df,
                                          kappa = hybrid_kappa,
                                          use_hybrid = T,
                                          num_Ybins = num_Ybins,
+                                         fix_n1 = fix_n1,
                                          lambda = lambda,
                                          analytic_variance = analytic_variance,
                                          refinement = refinement)
