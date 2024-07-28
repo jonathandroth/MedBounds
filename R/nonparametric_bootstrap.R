@@ -74,7 +74,9 @@ compute_bootstrap_draws_clustered <- function(f, df, d, m, y,
       same_treat_status <- (sum(temp) == 0) | (sum(temp) == nrow(temp))
       
       if(!same_treat_status) {
-        stop("ERROR: Treatment status should be the same within each cluster. Your current cluster variable cannot be used.")
+        stop("You have set fix_n1 = TRUE, which fixes the number of treated clusters in the bootstrap. 
+             To use this option, treatment status must be constant within clusters. 
+             Use fix_n1 = FALSE if treatment status varies within clusters")
       }
     }
   }
