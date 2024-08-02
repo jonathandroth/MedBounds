@@ -44,12 +44,18 @@ compute_bootstrap_draws_clustered <- function(f, df, d, m, y,
     if(!fix_n1){
       #If we don't fix n1, we just draw a bootstrap sample of clusters
       bs_clusters <- sample(x=uniqueClusters,size=ncluster,replace = TRUE)
-    }else{
+    
+    }
+    else {
       #If we fix n1, we draw a bootstrap sample of clusters for treated/control, then combine
       bs_clusters1 <- sample(x=treated_clusters,size=ncluster_1,replace = TRUE)
       bs_clusters0 <- sample(x=untreated_clusters,size=ncluster_0,replace = TRUE)
       bs_clusters <- c(bs_clusters0, bs_clusters1)
+    
     }
+    
+    cluster <- as.character(cluster)
+    
     bs_cluster_df <- data.frame(blah = 1:ncluster)
     bs_cluster_df[[cluster]] <- bs_clusters
     bs_cluster_df$blah <- NULL
@@ -59,6 +65,25 @@ compute_bootstrap_draws_clustered <- function(f, df, d, m, y,
                            by = cluster)
     return(f(df = df_bs, d = d,m = m, y = y))
   }
+  
+  # First check that the treatment status is the same within each cluster
+  if ((!is.null(cluster)) & (fix_n1)) {
+    
+    cluster_list <- unique(df[[cluster]])
+    
+    for (i in 1:length(cluster_list)) {
+      temp <- df[ df[[cluster]] == cluster_list[i], d ]
+      same_treat_status <- (sum(temp) == 0) | (sum(temp) == nrow(temp))
+      
+      if(!same_treat_status) {
+        stop("You have set fix_n1 = TRUE, which fixes the number of treated clusters in the bootstrap. 
+             To use this option, treatment status must be constant within clusters. 
+             Use fix_n1 = FALSE if treatment status varies within clusters")
+      }
+    }
+  }
+  
+  
   #If return_df, we return a df that binds that rows of the bootstrap draws
   #Otherwise, we return a list
   if(return_df){
