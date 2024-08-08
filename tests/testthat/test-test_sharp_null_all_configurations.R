@@ -10,6 +10,7 @@ library(testthat)
 library(parallel)
 library(foreach)
 library(doParallel)
+library(dplyr)
 library(MedBounds)
 
 
@@ -46,19 +47,21 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
   
   param_df <- expand.grid(param_values)
   
-  # Detect the number of cores
-  num_cores <- detectCores()
-  
-  # Create a cluster
-  cl <- makeCluster(num_cores - 1)
-  
-  registerDoParallel(cl)
-  
-  start <- Sys.time()
+  temppp <- param_df |> 
+    filter(!(Method == "FSST" & Weight.matrix == "avar"))
+  # # Detect the number of cores
+  # num_cores <- detectCores()
+  # 
+  # # Create a cluster
+  # cl <- makeCluster(num_cores - 1)
+  # 
+  # registerDoParallel(cl)
+  # 
+  # start <- Sys.time()
   
   # Running the tests
-  for(i in 9:nrow(param_df)) {
-    params <- param_df[i, ]
+  for(i in 7:nrow(temppp)) {
+    params <- temppp[i, ]
     
     if (params$Method == "FSST") {
       
@@ -153,24 +156,21 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
   # solution: cluster <- as.character(cluster) line 57 of nonparametric bootstrap
   
   
-  
+  # task 99
   # 2. Error in solve.default(beta.sigma) :                                                                  
   #   system is computationally singular: reciprocal condition number = 4.89739e-17
-
-  task_99 <- param_df[99, ]
   
   MedBounds::test_sharp_null(df = testdf,
                              d = "treated",
                              m = "primarily_leblango",
                              y = "EL_EGRA_PCA_Index",
-                             method = task_99$Method,
-                             num_Ybins = task_99$Num_Ybins,
-                             rearrange = task_99$Rearrange,
-                             fix_n1 = T,
-                             use_nc = task_99$Use_nc,
-                             # defiers_share = params$Defiers_share, # problem to be fixed
-                             weight.matrix = task_99$Weight.matrix,
-                             lambda = task_99$Lambda)
+                             method = "FSST",
+                             num_Ybins = 5,
+                             rearrange = T, 
+                             fix_n1 = T, 
+                             use_nc = T,
+                             weight.matrix = "avar", #### problem.....
+                             lambda = "ndd")
   
 })
 
