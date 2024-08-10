@@ -7,8 +7,8 @@
 #' @param m Name of the mediator variable(s)
 #' @param y Name of the outcome variable, which is assumed to take a discrete
 #'   support
-#' @param method Method to use. One of "ARP", "CS", "FSST", "CR"
-#' @param ordering A list with length equal to the cardinality of the support of the mediator variable. The name of each element corresponds to a point in the support, and each element is a vector that collects all m values that are less than or equal to this point. If ordering = NULL, the standard ordering is used. If length(m) > 1, then the default is the element-wise ordering.
+#' @param method Method to use. One of "ARP, "CS", "FSST"
+#' @param ordering A list with length equal to the cardinality of the support of the mediator variable. The name of each element corresponds to a point in the support, and each element is a vector that collects all m values that are less than or equal to this point. If ordering = NULL, the standard ordering is used. If length(m) > 1, then the default is the elementwise ordering.
 #' @param B Bootstrap size, default is 500
 #' @param cluster Cluster for bootstrap
 #' @param weight.matrix Weight matrix used to implement FSST. Possible options are "diag", "avar", "identity." Defaults is "diag" as in FSST.
@@ -59,7 +59,7 @@ test_sharp_null <- function(df,
                                y = y)
   
   ## Evaluate whether M is binary
-  binary_M <- n_distinct(df[m]) == 2
+  binary_M <- dplyr::n_distinct(df[m]) == 2
   
   ## Throw error if M is non-binary but use_binary = TRUE
   if (!is.null(use_binary)) {
@@ -91,6 +91,7 @@ test_sharp_null <- function(df,
                                          kappa = hybrid_kappa,
                                          use_hybrid = T,
                                          num_Ybins = num_Ybins,
+                                         fix_n1 = fix_n1,
                                          lambda = lambda,
                                          analytic_variance = analytic_variance,
                                          refinement = refinement)
@@ -103,7 +104,7 @@ test_sharp_null <- function(df,
       return(result)
     }
     else {
-      stop("Method must be either ARP or CS if use_binary = TRUE")
+      stop("Method must be either ARP, CS, FSST or toru if use_binary = TRUE")
     }
   }
   
@@ -129,10 +130,17 @@ test_sharp_null <- function(df,
     df$m <- uni_m
     m <- "m"
   }
-
+  
   #Discretize y if needed
   if(!is.null(num_Ybins)){
     df[[y]] <- discretize_y(yvec = df[[y]], numBins = num_Ybins)
+  } else {
+    continuous_y_flag <- n / length(unique(df[[y]])) <= 30
+    if (continuous_y_flag) {
+      message("Y variable might be continuous. Discretize it by specifying num_Ybins. Default num_Ybins = 5 is used now.")
+      num_Ybins <- 5
+      df[[y]] <- discretize_y(yvec = df[[y]], numBins = num_Ybins)
+    }
   }
 
   yvec <- df[[y]]
@@ -148,7 +156,7 @@ test_sharp_null <- function(df,
   ## Construct the A matrices and beta.shp ----
 
   #Specify whether method requires us to input only inequalities
-  inequalities_only <- ifelse(method %in% c("ARP","CS", "CR"),
+  inequalities_only <- ifelse(method %in% c("ARP","CS"),
                               TRUE, FALSE )
 
   #Construct the relevant A matrices and beta.shp
@@ -172,11 +180,6 @@ test_sharp_null <- function(df,
   my_values <- purrr::cross_df(list(m=mvalues,y=yvalues)) %>%
     dplyr::arrange(m,y) %>%
     dplyr::select(y,m)
-
-  # Current version allows only rearrange = TRUE when method = CR
-  if (method == "CR") {
-    regarrange <- TRUE
-  }
 
   # Override analytic var if method = FSST
   if (method == "FSST") {
@@ -239,7 +242,7 @@ test_sharp_null <- function(df,
     } else {
       beta.obs_FSST <- c(list(beta.obs), beta.obs_list)
     }
-
+    
     lpm <- lpinfer::lpmodel(A.obs = A.obs,
                             A.shp = A.shp,
                             A.tgt = A.tgt,
@@ -264,169 +267,6 @@ test_sharp_null <- function(df,
     return(list(result = fsst_result, reject = (fsst_result$pval[1, 2] < alpha)))
   }
 
-  if (method == "CR") {
-    # Define target parameter
-    A.tgt <- A_list$A.tgt
-    len_x <- length(A.tgt)
-
-    params <- list(OutputFlag=0)
-
-
-    # Define gurobi model
-    model <- list()
-
-    A <- rbind(A.shp, A.obs)
-    rhs <- c(beta.shp, beta.obs)
-    lb <- rep(0, len_x)
-    ub <- rep(1, len_x)
-
-    # Combine lower and upper bound into matrix
-    model$A <- A
-    model$obj <- A.tgt
-    model$rhs <- rhs
-    model$lb  <- lb
-    model$ub  <- ub
-    model$sense <- rep('>', length(rhs))
-
-    # Optimize for "l"
-    model$modelsense <- 'min'
-    min.result <- gurobi::gurobi(model, params)
-
-    # Optimize for "u"
-    model$modelsense <- 'max'
-    max.result <- gurobi::gurobi(model, params)
-
-    # Draw perturbation
-    xi_obj <- runif(len_x) * eps_bar
-    xi_rhs <- runif(length(rhs)) * eps_bar
-    xi_lb <- runif(len_x) * eps_bar
-    xi_ub <- runif(len_x) * eps_bar
-
-    ############################################################################
-    # Compute LB-,LB+,UB-,UB+
-    ############################################################################
-
-    model$rhs <- rhs - xi_rhs
-    model$lb <- lb - xi_lb
-    model$ub <- ub + xi_ub
-
-    ############################################################################
-    # Compute LB-,UB-
-    model$obj<- A.tgt - xi_obj
-
-    # Optimize LB-
-    model$modelsense <- 'min'
-    min.result.m <- gurobi::gurobi(model, params)
-
-    # Record lower bound
-    lbminus <- min.result.m$objval
-
-    # Optimize UB-
-    model$modelsense <- 'max'
-    max.result.m <- gurobi::gurobi(model, params)
-
-    # Record lower bound
-    ubminus <- max.result.m$objval
-
-    #######################################################
-    # Compute LB+,UB+
-    model$obj <- A.tgt + xi_obj
-
-    # Optimize
-    model$modelsense <- 'min'
-    min.result.p <- gurobi::gurobi(model, params)
-
-    # Record lower bound
-    lbplus <- min.result.p$objval
-
-    # Optimize UB-
-    model$modelsense <- 'max'
-    max.result.p <- gurobi::gurobi(model, params)
-
-    # Rrecord upper bound
-    ubplus <- max.result.p$objval
-
-    ############################################################################
-    # Begin bootstrap procedure
-    boot_lbminus <- rep(NA, B)
-    boot_lbplus <- rep(NA, B)
-    boot_ubminus <- rep(NA, B)
-    boot_ubplus <- rep(NA, B)
-
-    for (b in 1:B) {
-
-      # Get beta.obs for bootstrap draw
-      beta.obs_b <- beta.obs_list[[b]]
-
-      # Update rhs
-      rhs_b <- c(beta.shp, beta.obs_b)
-
-      # Update model
-      model$rhs <- rhs_b - xi_rhs
-
-      ############################################################################
-      # Compute LB-,UB-
-      model$obj<- A.tgt - xi_obj
-
-      # Optimize LB-
-      model$modelsense <- 'min'
-      bmin.result.m <- gurobi::gurobi(model, params)
-
-      # Record lower bound
-      boot_lbminus[b] <- bmin.result.m$objval
-
-      # Optimize UB-
-      model$modelsense <- 'max'
-      bmax.result.m <- gurobi::gurobi(model, params)
-
-      # Record upper bound
-      boot_ubminus[b] <- bmax.result.m$objval
-
-      ###################################################
-      # Objective function for LB+ and UB+
-      model$obj<- A.tgt + xi_obj
-
-      # Optimize LB+
-      model$modelsense <- 'min'
-      bmin.result.p <- gurobi::gurobi(model, params)
-
-      # Record lower bound
-      boot_lbplus[b] <- bmin.result.p$objval
-
-      # Optimize UB+
-      model$modelsense <- 'max'
-      bmax.result.p <- gurobi::gurobi(model, params)
-
-      # Record upper bound
-      boot_ubplus[b] <- bmax.result.p$objval
-    }
-
-    # Compute indicator Dn
-    bn <- 1/sqrt(log(n))
-    Delta <- max(ubplus, ubminus) - min(lbminus, lbplus)
-    Dn <- (Delta > bn) + 0
-
-    # Calculate kappa
-    kappa <- (1 - alpha) * Dn + (1 - alpha/2) * (1 - Dn)
-
-    # Bootstrap quantities
-    lbminus_q <- sqrt(n) * (boot_lbminus - lbminus)
-    lbplus_q <- sqrt(n) * (boot_lbplus - lbplus)
-    ubminus_q <- -sqrt(n) * (boot_ubminus - ubminus)
-    ubplus_q <- -sqrt(n) * (boot_ubplus - ubplus)
-
-    # Select quantile according to kappa
-    psi_k_lb_minus <- quantile(lbminus_q, kappa)
-    psi_k_lb_plus <- quantile(lbplus_q, kappa)
-    psi_k_ub_minus <- quantile(ubminus_q, kappa)
-    psi_k_ub_plus <- quantile(ubplus_q, kappa)
-
-    #compute confidence set for alpha=0.05
-    CSlb <- min(lbminus, lbplus) - (1/sqrt(n)) * max(psi_k_lb_minus, psi_k_lb_plus)
-    CSub <- max(ubminus, ubplus) + (1/sqrt(n)) * max(psi_k_ub_minus, psi_k_ub_plus)
-
-    return(list(CI = c(CSlb, CSub), reject = (0 < CSlb)))
-  }
 
   if(method %in% c("ARP", "CS")){
 
@@ -822,7 +662,7 @@ test_sharp_null <- function(df,
   }
 
 
-  stop("method must be one of ARP, CS, FSST, CR")
+  stop("method must be one of ARP, CS, FSST")
 
 }
 

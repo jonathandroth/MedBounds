@@ -167,6 +167,7 @@ test_sharp_null_binary_m <- function(df,
   }
   
   
+  
   ## Run the respective tests
   if (method == "FSST") {
     # Join beta.obs from actual and boostrapped data
