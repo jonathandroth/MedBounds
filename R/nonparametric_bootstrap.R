@@ -44,7 +44,15 @@ compute_bootstrap_draws_clustered <- function(f, df, d, m, y,
     if(!fix_n1){
       #If we don't fix n1, we just draw a bootstrap sample of clusters
       bs_clusters <- sample(x=uniqueClusters,size=ncluster,replace = TRUE)
-    
+      
+      # Check for whether the sampled clusters are eithe all treated or all untreated
+      temp <- as.numeric(bs_clusters)
+      homogenous_treatment_flag <- nrow(unique(df[df$cluster %in% temp, d])) == 1
+      if (homogenous_treatment_flag) {
+        stop("There is a bootstrap sample which contains either all treated or all untreated clusters, hence conditional densities cannot be computed.
+             This might be caused by the fact that your cluster variable has too few unique clusters.
+             Please use another cluster variable.")
+      }
     }
     else {
       #If we fix n1, we draw a bootstrap sample of clusters for treated/control, then combine
