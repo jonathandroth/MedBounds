@@ -53,6 +53,7 @@ compute_bootstrap_draws_clustered <- function(f, df, d, m, y,
              This might be caused by the fact that your cluster variable has too few unique clusters.
              Please use another cluster variable.")
       }
+
     }
     else {
       #If we fix n1, we draw a bootstrap sample of clusters for treated/control, then combine
@@ -61,6 +62,7 @@ compute_bootstrap_draws_clustered <- function(f, df, d, m, y,
       bs_clusters <- c(bs_clusters0, bs_clusters1)
     
     }
+    cluster <- as.character(cluster)
     
     bs_cluster_df <- data.frame(blah = 1:ncluster)
     bs_cluster_df[[cluster]] <- bs_clusters
