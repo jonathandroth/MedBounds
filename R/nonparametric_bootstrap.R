@@ -18,6 +18,10 @@ compute_bootstrap_draws_clustered <- function(f, df, d, m, y,
                                               numdraws = 100,
                                               return_df = T,
                                               fix_n1 = T){
+  
+  ### Load Haven library so that working with haven label does not run into error
+  library(haven)
+  
   n <- NROW(df)
 
   if(is.null(cluster)){
