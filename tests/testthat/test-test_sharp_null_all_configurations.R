@@ -11,6 +11,7 @@ library(parallel)
 library(foreach)
 library(doParallel)
 library(dplyr)
+library(devtools)
 library(MedBounds)
 
 
@@ -47,8 +48,8 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
   
   param_df <- expand.grid(param_values)
   
-  temppp <- param_df |> 
-    filter(!(Method == "FSST" & Weight.matrix == "avar"))
+  # attempt of parallel computing
+  # 
   # # Detect the number of cores
   # num_cores <- detectCores()
   # 
@@ -60,8 +61,8 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
   # start <- Sys.time()
   
   # Running the tests
-  for(i in 7:nrow(temppp)) {
-    params <- temppp[i, ]
+  for(i in 1:nrow(param_df)) {
+    params <- param_df[i, ]
     
     if (params$Method == "FSST") {
       
@@ -149,16 +150,6 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
   
   print(Sys.time() - start)
   
-# 1. Error in { : task 39 failed - "ℹ In index: 1.
-# Caused by error in `dplyr::left_join()`:
-# ! `by` must be a (named) character vector, list, `join_by()` result, or NULL, not a <factor> object."
-
-  # solution: cluster <- as.character(cluster) line 57 of nonparametric bootstrap
-  
-  
-  # task 99
-  # 2. Error in solve.default(beta.sigma) :                                                                  
-  #   system is computationally singular: reciprocal condition number = 4.89739e-17
   
   MedBounds::test_sharp_null(df = testdf,
                              d = "treated",
@@ -169,7 +160,7 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
                              rearrange = T, 
                              fix_n1 = T, 
                              use_nc = T,
-                             weight.matrix = "avar", #### problem.....
+                             weight.matrix = "avar", #### solved.
                              lambda = "ndd")
   
 })
