@@ -1,5 +1,7 @@
 # Unit tests for test_sharp_null function to see if it runs under reasonable configurations of parameters
 
+### Install necessary packages
+
 # install.packages("doParallel")
 # install.packages("devtools")
 # devtools::install_github("soonwookwon/lpinfer")
@@ -44,8 +46,6 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
     Analytic_variance = analytical_vars
   )
   
-  # Parallel Computing setup
-  
   param_df <- expand.grid(param_values)
   
   # attempt of parallel computing
@@ -79,7 +79,7 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
                                      rearrange = params$Rearrange,
                                      fix_n1 = FALSE,
                                      use_nc = params$Use_nc,
-                                     # defiers_share = params$Defiers_share, # problem to be fixed
+                                     defiers_share = params$Defiers_share, # problem to be fixed
                                      weight.matrix = params$Weight.matrix,
                                      lambda = params$Lambda)
         
@@ -97,7 +97,7 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
                                      rearrange = params$Rearrange,
                                      fix_n1 = TRUE,
                                      use_nc = params$Use_nc,
-                                     # defiers_share = params$Defiers_share, # problem to be fixed
+                                     defiers_share = params$Defiers_share, # problem to be fixed
                                      weight.matrix = params$Weight.matrix,
                                      lambda = params$Lambda)
         
@@ -148,20 +148,7 @@ test_that("If test_sharp_null runs under reasonable configurations of the parame
   # Stop the cluster
   # stopCluster(cl)
   
-  print(Sys.time() - start)
-  
-  
-  MedBounds::test_sharp_null(df = testdf,
-                             d = "treated",
-                             m = "primarily_leblango",
-                             y = "EL_EGRA_PCA_Index",
-                             method = "FSST",
-                             num_Ybins = 5,
-                             rearrange = T, 
-                             fix_n1 = T, 
-                             use_nc = T,
-                             weight.matrix = "avar", #### solved.
-                             lambda = "ndd")
+  # print(Sys.time() - start)
   
 })
 
