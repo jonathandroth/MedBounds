@@ -25,6 +25,7 @@
 #' @param defiers_share Bound on the proportion of defiers in the population. Default is 0 which indicates that the monotonicity constraint is imposed.
 #' @param new_dof_CS Use the new degrees of freedom formula for Cox and Shi? Default is FALSE.
 #' @param use_binary If TRUE, uses ARP and CS implementation that exploits the fact that there are no nuisance parameters when the mediator is binary
+#' @param frac_ATs_affected Default is NULL. If specified as a float in (0,1), this function tests for the fraction of always-takers affected
 #' @export
 #'
 test_sharp_null <- function(df,
@@ -49,7 +50,8 @@ test_sharp_null <- function(df,
                             defiers_share = 0,
                             new_dof_CS = FALSE,
                             use_binary = NULL,
-                            refinement = FALSE){
+                            refinement = FALSE,
+                            frac_ATs_affected = NULL){
  
   ## Process the inputted df ----  
   # Remove missing values
@@ -69,6 +71,11 @@ test_sharp_null <- function(df,
   } 
   else if (is.null(use_binary)) {
     use_binary = binary_M
+  }
+  
+  ## Do not run the binary test when frac_ATs_affected is not null, since we want to test for the fraction of always-takers
+  if (!is.null(frac_ATs_affected)) {
+    use_binary = FALSE
   }
   
   ## Print confirmation, can delete this if you prefer
@@ -164,8 +171,8 @@ test_sharp_null <- function(df,
                                         mvec = mvec,
                                         ordering = ordering,
                                         inequalities_only = inequalities_only,
-                                        defiers_share = defiers_share
-                                        )
+                                        defiers_share = defiers_share,
+                                        frac_ATs_affected = frac_ATs_affected)
 
   A.shp <- A_list$A.shp
   A.obs <- A_list$A.obs
@@ -672,7 +679,8 @@ construct_Aobs_Ashp_betashp <- function(yvec,
                                         mvec,
                                         ordering,
                                         inequalities_only = F,
-                                        defiers_share = 0){
+                                        defiers_share = 0,
+                                        frac_ATs_affected = NULL){
 
   # Cardinality of the supports of Y and M
   d_y <- length(unique(yvec))
@@ -692,11 +700,15 @@ construct_Aobs_Ashp_betashp <- function(yvec,
   # x = (theta, delta, zeta, kappa, eta)
   # zeta, kappa: nuisance par to convert inequalities to equalities
   # eta: nuisance par to create target par (= theta_kk TV_kk)
+  
+  # If testing the fraction of ATs, then:
+  # x = (theta, delta, zeta, kappa, eta, iota, gamma, epsilon)
+  # iota: defined to be v_k theta_kk
+  # gamma: nuisance par to convert inequalities to equalities
+  # epsilon: nuisance par to create target par
 
   par_lengths <- c("theta" = K^2, "delta" = d_y * K, "zeta" = K,
                    "kappa" = d_y * K, "eta" = K)
-  
-  len_x <- sum(par_lengths)
   
   parameter_types <- c(rep("theta", par_lengths[["theta"]]),
                        rep("delta", par_lengths[["delta"]]),
@@ -709,9 +721,27 @@ construct_Aobs_Ashp_betashp <- function(yvec,
   zeta_indices <- which(parameter_types == "zeta")
   kappa_indices <- which(parameter_types == "kappa")
   eta_indices <- which(parameter_types == "eta")
-
-
-
+  
+  # If testing the fraction of ATs, include the additional params
+  if (!is.null(frac_ATs_affected)) {
+    
+    # iota is eta in Jon's note, for implementing the fraction of always takers affected.
+    # gamma is nuisance par to convert inequalities to equalities.
+    # epsilon: nuisance par to create target par for the new constraints
+    
+    par_lengths <- c(par_lengths, "iota" = K, "gamma" = K + 1, "epsilon" = K + 1)
+    parameter_types <- c(parameter_types,
+                         rep("iota", par_lengths[["iota"]]),
+                         rep("gamma", par_lengths[["gamma"]]),
+                         rep("epsilon", par_lengths[["epsilon"]]))
+    iota_indices <- which(parameter_types == "iota")
+    gamma_indices <- which(parameter_types == "gamma")
+    epsilon_indices <- which(parameter_types == "epsilon")
+  }
+  
+  len_x <- sum(par_lengths)
+  
+  
   # Set theta_lk = 0 for l > k using
   # Matrix that encodes whether l > k
   l_gt_k_mat <- matrix(NA, K, K)
@@ -731,7 +761,7 @@ construct_Aobs_Ashp_betashp <- function(yvec,
     A.shp <- matrix(0, nrow = K + 1, ncol = len_x)
   }
   
-
+  
   # Set bound on sum_{l!=k} theta_lk - sum_q delta_qk
   # Also includes eta_kk (= theta_kk TV_kk) as a "nuisance" parameter
   for (k in 1:K) {
@@ -744,12 +774,44 @@ construct_Aobs_Ashp_betashp <- function(yvec,
     # TV_kk "nuisance" parameters
     A.shp[k, sum(par_lengths[1:4]) + k] <- 1
   }
+  
+  
+  ## If testing the fraction of ATs, need to update previously defined inequalities and include new inequalities
+  ## For more details, please refer to Jon's notes.
+  if (!is.null(frac_ATs_affected)) {
+    
+    ## Coefficients for iota, for equation 2
+    A.shp[1:K, sum(par_lengths[1:5]) + 1:K] <- diag(K)
+    
+    ## For equation 3 and 4
+    temp <- matrix(0, nrow = K + 1, ncol = len_x)
+    
+    # for equation 4
+    for (k in 1:K) { 
+      temp[k, (k-1) * K + k] <- 1    # theta_kk has coefficient 1
+      temp[k, sum(par_lengths[1:5]) + k] <- -1  # iota_k has coefficient -1
+      temp[k, sum(par_lengths[1:6]) + k] <- -1  # gamma is slack parameter for turning ineq into eq
+      temp[k, sum(par_lengths[1:7]) + k] <- 1 # epsilon is the FSST target param
+    }
+    
+    # for equation 3
+    temp[K+1, 1:par_lengths[1]] <- colSums(temp[1:K, 1:par_lengths[1]]) * -frac_ATs_affected  # summing thetas
+    temp[K+1, sum(par_lengths[1:5]) + 1:K] <- 1  # summing iotas
+    temp[K+1, sum(par_lengths[1:7])] <- -1 # gamma converting inequalities into equalities
+    temp[K+1, sum(par_lengths[1:7]) + K + 1] <- 1 # epsilon is the FSST target param
+    
+    A.shp <- rbind(A.shp, temp)
+  }
 
-
+  
   if (defiers_share == 0) {
-    if (inequalities_only == T) {
-      #Remove both the extraneous thetas *and* kappa,zeta,eta
-      A.shp <- A.shp[, -c(l_gt_k_inds, kappa_indices, eta_indices, zeta_indices)]
+    if (inequalities_only) {
+      # Because these are for the inequalities to become equalities. eta is the FSST target param which is a nuisance param
+      if (is.null(frac_ATs_affected)) {
+        A.shp <- A.shp[, -c(l_gt_k_inds, zeta_indices, kappa_indices, eta_indices)]
+      } else { # If testing the fraction of ATs, remove the additional nuisance pars
+        A.shp <- A.shp[, -c(l_gt_k_inds, zeta_indices, kappa_indices, eta_indices, gamma_indices, epsilon_indices)]
+      }
 
       #Add shape constraint that all parameters are >= 0 (this is not enforced by ARP)
       A.shp <- rbind(A.shp, diag(NCOL(A.shp)))
@@ -763,16 +825,31 @@ construct_Aobs_Ashp_betashp <- function(yvec,
 
     A.shp[K + 1, l_gt_k_inds] <- - 1
 
-    if (inequalities_only == T) {
+    if (inequalities_only) {
       #Remove both the extraneous thetas *and* kappa,zeta,eta
-      A.shp <- A.shp[, -c(kappa_indices, eta_indices, zeta_indices)]
-
+      if (is.null(frac_ATs_affected)) {
+        A.shp <- A.shp[, -c(zeta_indices, kappa_indices, eta_indices)]
+      } else { # If testing the fraction of ATs, remove the additional nuisance pars
+        A.shp <- A.shp[, -c(zeta_indices, kappa_indices, eta_indices, gamma_indices, epsilon_indices)]
+      }
       #Add shape constraint that all parameters are >= 0 (this is not enforced by ARP)
       A.shp <- rbind(A.shp, diag(NCOL(A.shp)))
 
-    } else {    
+    } else {
+      
       # Inequalities to equalities for defiers_share
-      A.shp <- cbind(A.shp, c(rep(0, K), -1))
+      if (!is.null(frac_ATs_affected)) {
+        A.shp <- cbind(A.shp, c( rep(0, K), -1, rep(0, K+1) )) # A slackness param which is greater than or equal to 0 to impose equality 
+      } else { 
+        A.shp <- cbind(A.shp, c(rep(0, K), -1)) # A slackness param which is greater than or equal to 0 to impose equality 
+      }
+      
+      # Update the list of parameters
+      par_lengths <- c(par_lengths, "defier_zeta" = 1)
+      parameter_types <- c(parameter_types, "defier_zeta")
+      defier_zeta_indices <- which(parameter_types == "defier_zeta")
+      
+      len_x <- sum(par_lengths)
     }
   }
 
@@ -782,9 +859,7 @@ construct_Aobs_Ashp_betashp <- function(yvec,
     beta.shp[K + 1]  <- - defiers_share
   }
 
-
-
-
+  
   # Set remaining constraints using A.obs x = beta.obs
 
   # Define A.obs
@@ -816,7 +891,11 @@ construct_Aobs_Ashp_betashp <- function(yvec,
   if (defiers_share == 0) {
     if (inequalities_only) {
       # Remove both the extraneous thetas *and* kappa,zeta,eta
-      A.obs <- A.obs[, -c(l_gt_k_inds, kappa_indices, eta_indices, zeta_indices)]
+      if (is.null(frac_ATs_affected)) {
+        A.obs <- A.obs[, -c(l_gt_k_inds, zeta_indices, kappa_indices, eta_indices)]
+      } else { # If testing the fraction of ATs, remove the additional nuisance pars
+        A.obs <- A.obs[, -c(l_gt_k_inds, zeta_indices, kappa_indices, eta_indices, gamma_indices, epsilon_indices)]
+      }
 
       # The first 2K rows of A.obs are equality constraints, so we duplicate
       # them with opposite signs to get equalities as inequalities
@@ -827,16 +906,15 @@ construct_Aobs_Ashp_betashp <- function(yvec,
       #Remove the extraneous thetas only
       A.obs <- A.obs[, -c(l_gt_k_inds)]
     }
-
-    #Create A.tgt (only used for lpinfer functions)
-    A.tgt <- numeric(len_x)
-    A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
-    A.tgt <- A.tgt[-l_gt_k_inds]
     
   } else {
     if (inequalities_only) {
       # Remove kappa,zeta,eta
-      A.obs <- A.obs[, -c(kappa_indices, eta_indices, zeta_indices)]
+      if (is.null(frac_ATs_affected)) {
+        A.obs <- A.obs[, -c(zeta_indices, kappa_indices, eta_indices)]
+      } else { # If testing the fraction of ATs, remove the additional nuisance pars
+        A.obs <- A.obs[, -c(zeta_indices, kappa_indices, eta_indices, gamma_indices, epsilon_indices)]
+      }
 
       # The first 2K rows of A.obs are equality constraints, so we duplicate
       # them with opposite signs to get equalities as inequalities
@@ -844,14 +922,23 @@ construct_Aobs_Ashp_betashp <- function(yvec,
                      -A.obs[1:(2 * K),],
                      A.obs[(2 * K + 1):NROW(A.obs), ])
     } 
-
-    #Create A.tgt (only used for lpinfer functions)
-    A.tgt <- numeric(len_x)
-    A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
-
   }
   
-
+  # Create A.tgt (only used for lpinfer functions)
+  A.tgt <- numeric(len_x)
+  A.tgt[sum(par_lengths[1:4]) + (1:K)] <- 1
+  
+  # If testing the fraction of ATs, include the additional target pars
+  if (!is.null(frac_ATs_affected)) {
+    A.tgt[sum(par_lengths[1:7]) + 1:(K+1)] <- 1
+  }
+  
+  # Remove the defier theta column
+  if (defiers_share == 0) {
+    A.tgt <- A.tgt[-l_gt_k_inds]
+  }
+  
+  
 
   return(list(A.obs = A.obs,
               A.shp = A.shp,
