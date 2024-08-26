@@ -19,6 +19,7 @@ test_sharp_null_binary_m(
   kappa = alpha/10,
   use_hybrid = T,
   num_Ybins = NULL,
+  fix_n1 = T,
   lambda = "dd",
   analytic_variance = FALSE,
   refinement = FALSE,
@@ -50,6 +51,7 @@ ordering is used.}
 \item{weight.matrix}{Weight matrix used to implement FSST. Possible options
  are "diag", "avar", "identity." Defaults is "diag" as in FSST.
 @param num_Ybins (Optional) If specified, Y is discretized into the given number of bins (if num_Ybins is larger than the number of unique values of Y, no changes are made)
+@param fix_n1 Whether the number of treated units (or clusters) should be fixed in the bootstrap
 @param lambda (For FSST only) A string variable, either dd or ndd, standing for data-driven or non-data driven respectively.
 @param analytic_variance (For CS or ARP only) A flag indicating whether to use analytic variance.
 @param refinement (For CS only, optional) If TRUE, use the refined Cox & Shi test (rCC rather than CC). Default is FALSE.
