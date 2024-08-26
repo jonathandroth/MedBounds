@@ -795,8 +795,8 @@ construct_Aobs_Ashp_betashp <- function(yvec,
     }
     
     # for equation 3
-    temp[K+1, 1:par_lengths[1]] <- colSums(temp[1:K, 1:par_lengths[1]]) * -frac_ATs_affected  # summing thetas
-    temp[K+1, sum(par_lengths[1:5]) + 1:K] <- 1  # summing iotas
+    temp[K+1, 1:par_lengths[1]] <- colSums(temp[1:K, 1:par_lengths[1]]) * frac_ATs_affected  # summing thetas
+    temp[K+1, sum(par_lengths[1:5]) + 1:K] <- -1  # summing iotas
     temp[K+1, sum(par_lengths[1:7])] <- -1 # gamma converting inequalities into equalities
     temp[K+1, sum(par_lengths[1:7]) + K + 1] <- 1 # epsilon is the FSST target param
     
