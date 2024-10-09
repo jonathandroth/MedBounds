@@ -297,7 +297,3 @@ lb_frac_both
 ```
 We estimate a lower bound of `r round(100 * lb_frac_both)` percent, but this does not appear
 to be statistically significant given the test result above.
-
-
-
-
