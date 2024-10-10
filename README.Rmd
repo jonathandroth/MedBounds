@@ -240,8 +240,7 @@ test_sharp_null(df = mother_data,
                 y = "motherfinancial",
                 num_Ybins = 5,
                 method = "CS",
-                cluster = "uc",
-                analytic_variance = TRUE)$pval
+                cluster = "uc")$pval
 ```
 Again, we reject the *sharp null* that all the treatment effect goes through the
 relationship quality with the husband.

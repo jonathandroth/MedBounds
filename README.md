@@ -252,8 +252,7 @@ test_sharp_null(df = mother_data,
                 y = "motherfinancial",
                 num_Ybins = 5,
                 method = "CS",
-                cluster = "uc",
-                analytic_variance = TRUE)$pval
+                cluster = "uc")$pval
 #> It is FALSE that M in data is binary
 #> It is FALSE that binary test is used
 #>            [,1]
