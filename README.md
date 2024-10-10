@@ -12,9 +12,10 @@ Mechanisms”](https://www.jonathandroth.com/assets/files/TestingMechanisms_Draf
 by Soonwoo Kwon and Jonathan Roth. The package provides tests for the
 “sharp null of full mediation”, which conjectures that the effect of a
 treatment operates through a particular conjectured mechanism (or set of
-mechanisms) M. It also provides lower bounds on the fraction of
-“always-takers” who are affected by the treatment despite having the
-same value of M regardless of treatment status.
+mechanisms) M. The treatment is assumed to be randomly assigned. It also
+provides lower bounds on the fraction of “always-takers” who are
+affected by the treatment despite having the same value of M regardless
+of treatment status.
 
 ## Installation
 
@@ -80,11 +81,11 @@ these function, please refer to the documentation of each function
 
 ### Graphical Evidence
 
-We first provide graphical evidence using a partial density plot. Since
-such (partial) density plots are often helpful to understand where the
-violations of the *sharp null* is coming from, the package includes a
-function `partial_density_plot()` that can be used to produce such
-plots. The following snippet reproduces Figure 3 of the main paper.
+We first provide graphical evidence using a partial density plot using
+the function `partial_density_plot()`. When $M$ is binary, such
+(partial) density plots are often helpful to understand where the
+violations of the *sharp null* is coming from. The following snippet
+reproduces Figure 3 of the main paper.
 
 ``` r
 nt_plot <-
@@ -142,9 +143,7 @@ test_result <- test_sharp_null(df = mother_data,
                                y = "motherfinancial",
                                method = "CS",
                                num_Ybins = 5,
-                               cluster = "uc",
-                               analytic_variance = TRUE,
-                               refinement = TRUE)
+                               cluster = "uc")
 #> It is TRUE that M in data is binary
 #> It is TRUE that binary test is used
 
@@ -155,7 +154,11 @@ test_result$pval
 
 The test gives a p-value of 0.023, and thus the *sharp null* is rejected
 at a 5% significance level. Here, the p-value corresponds to the
-smallest value of $\alpha$ for which the test rejects.
+smallest value of $\alpha$ for which the test rejects. As mentioned
+above, we discretize the outcome variable to 5 bins as can be seen from
+the argument `num_Ybins = 5`. Currently, the function discretizes $Y$
+into 5 bins if a `num_Ybins` value is not provided but $Y$ takes more
+than $30$ distinct values in the data.
 
 ### Calculating the lower bound on fraction of always-takers affected by outcome
 
@@ -204,9 +207,7 @@ test_result_defiers <- test_sharp_null(df = mother_data,
                                        method = "CS",
                                        num_Ybins = 5,
                                        cluster = "uc",
-                                       analytic_variance = TRUE,
-                                       max_defiers_share = .01,
-                                       refinement = TRUE)
+                                       max_defiers_share = .01)
 #> It is TRUE that M in data is binary
 #> It is FALSE that binary test is used
 
@@ -295,8 +296,7 @@ test_result_both <- test_sharp_null(df = mother_data,
                                     y = "motherfinancial",
                                     num_Ybins = 5,
                                     method = "CS",
-                                    cluster = "uc",
-                                    analytic_variance = TRUE)
+                                    cluster = "uc")
 #> It is FALSE that M in data is binary
 #> It is FALSE that binary test is used
 
