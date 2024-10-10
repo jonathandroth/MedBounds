@@ -46,11 +46,10 @@ test_sharp_null <- function(df,
                             fix_n1 = TRUE,
                             lambda = "dd",
                             use_nc = FALSE,
-                            analytic_variance = FALSE,
+                            analytic_variance = ifelse(method == "FSST", FALSE, TRUE),
                             max_defiers_share = 0,
                             new_dof_CS = FALSE,
                             use_binary = NULL,
-                            refinement = FALSE,
                             frac_ATs_affected = NULL){
  
   ## Process the inputted df ----  
@@ -101,7 +100,7 @@ test_sharp_null <- function(df,
                                          fix_n1 = fix_n1,
                                          lambda = lambda,
                                          analytic_variance = analytic_variance,
-                                         refinement = refinement)
+                                         refinement = TRUE)
       return(result)
     }
     else if (method == "toru") {
