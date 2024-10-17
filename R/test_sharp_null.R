@@ -78,8 +78,8 @@ test_sharp_null <- function(df,
   }
   
   ## Print confirmation, can delete this if you prefer
-  message(paste0("It is ", binary_M, " that M in data is binary"))
-  message(paste0("It is ", use_binary, " that binary test is used"))
+  ## message(paste0("It is ", binary_M, " that M in data is binary"))
+  ## message(paste0("It is ", use_binary, " that binary test is used"))
   
   ## Pass to more efficient algorithm when M is binary
   if (use_binary) {
